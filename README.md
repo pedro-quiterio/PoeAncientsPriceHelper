@@ -33,7 +33,7 @@ has been opened upstream.
 
 > **These differ from the upstream project — read before installing.**
 
-- **.NET 10 SDK** required to build from source (`dotnet build`)
+- **.NET 10 SDK** required to build from source (`dotnet build`) — [download here](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
   - Only the **Desktop Runtime** is needed if you just run the pre-built release
 - **Windows 10 version 2004+** or Windows 11 (required for WGC + Windows OCR)
 - **No Tesseract, no traineddata** — Windows OCR is built into Windows
@@ -114,7 +114,7 @@ and double-click **`Start.cmd`**.
 
 ## 🔨 Build from source
 
-Requires the **.NET 10 SDK** and **Windows 10 version 2004+** / Windows 11.
+Requires the **.NET 10 SDK** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)) and **Windows 10 version 2004+** / Windows 11.
 
 ```sh
 # restore + build
