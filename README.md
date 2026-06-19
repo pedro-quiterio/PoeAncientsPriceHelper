@@ -10,6 +10,37 @@ next to each item — so you never have to alt-tab mid-trade.
 
 ---
 
+## 📌 About this fork
+
+This is a fork of [pedro-quiterio/PoeAncientsPriceHelper](https://github.com/pedro-quiterio/PoeAncientsPriceHelper)
+with a **ground-up performance, stability, and OCR overhaul**. A [PR](https://github.com/pedro-quiterio/PoeAncientsPriceHelper/pull/18)
+has been opened upstream.
+
+### What changed in v2.0.0
+
+| Area | Before | After |
+|---|---|---|
+| **OCR engine** | Tesseract (document scanner) | **Windows.Media.Ocr** (native, GPU-accelerated) |
+| **Detection** | 3 of 5 items, some never | **All 5 instantly** |
+| **Screen capture** | GDI `CopyFromScreen` (CPU) | **WGC** (GPU via D3D11) + GDI fallback |
+| **CPU usage** | High — full pipeline every cycle | **Low** — render skip, cached buffers, throttled intervals |
+| **Price fetch** | Sequential HTTP | **Parallel HTTP/2** over single connection |
+| **Stability** | Race conditions, GDI leaks | **Fixed** — atomic snapshots, concurrency hardening |
+
+---
+
+## ⚠️ Requirements (different from original)
+
+> **These differ from the upstream project — read before installing.**
+
+- **.NET 10 SDK** required to build from source (`dotnet build`)
+  - Only the **Desktop Runtime** is needed if you just run the pre-built release
+- **Windows 10 version 2004+** or Windows 11 (required for WGC + Windows OCR)
+- **No Tesseract, no traineddata** — Windows OCR is built into Windows
+- Self-contained build: **no .NET installation needed** if using the release zip
+
+---
+
 ## ✨ Features
 
 ### 📊 Live price overlay
@@ -17,31 +48,42 @@ next to each item — so you never have to alt-tab mid-trade.
 - **Auto-refreshed** every 30 minutes in the background
 - **Stack-aware** — shows both the total and per-item price, e.g. `2 (0.5 each)`
 - **Uncut gems** priced by exact type **and level** — shows `?` instead of a wrong-level guess
-  (neighbouring levels can differ several-fold in value)
+
+### 🔍 Windows OCR engine
+- **Windows.Media.Ocr** — the native WinRT engine designed for on-screen text
+- Dramatically faster and more accurate than document-oriented engines for game UI
+- **3× upscaling** for glyph accuracy on small fonts
+- No external dependencies or language model files
 
 ### 🖼️ GPU-accelerated screen capture
 - **Windows Graphics Capture (WGC)** by default — runs on the GPU via D3D11, minimal CPU
 - **Automatic GDI fallback** per-frame if WGC is unavailable or fails at runtime
 - Configurable via `CaptureBackend` in `config.json` (`"Auto"` / `"GDI"`)
 
-### 🔍 Windows OCR engine
-- **Windows.Media.Ocr** — the native WinRT engine designed for on-screen text
-- Dramatically faster and more accurate than document-oriented engines for game UI
-- **3× upscaling** for glyph accuracy on small fonts
-
 ### 🎯 Smart matching pipeline
 - **Exact → prefix → fuzzy** resolution chain with Levenshtein distance
-- **Resolution cache** — OCR'd names are resolved to price keys once, then cached
-  (invalidated on each price refresh)
-- **Length-bucketed fuzzy index** — only scans keys within ±3 characters of the name length
-- **High-confidence fuzzy lock** — matches at ≥0.92 similarity lock in 1 read instead of 2
+- **Resolution cache** — OCR'd names resolved to price keys once, then cached
+- **Length-bucketed fuzzy index** — only scans keys within ±3 characters
+- **High-confidence fuzzy lock** — matches ≥0.92 similarity lock in 1 read
 
 ### 🖥️ Overlay quality
 - **Click-through** — never gets in the way of the game
 - **Per-pixel alpha** via `UpdateLayeredWindow` for genuine semi-transparency
 - **Render skip** — only repaints when rows or state actually change
-- **Cached render buffer** — avoids allocating a monitor-sized bitmap per frame
+- **Cached render buffer** — avoids monitor-sized bitmap allocation per frame
 - **Stale-clearing** — automatically hides prices during loading screens
+
+### ⚡ Performance
+- **OCR interval:** 150ms while panel open (~6.7 reads/s) — sub-200ms price turnaround
+- **Idle polling:** 300ms while panel closed (~3.3 captures/s) — minimal idle CPU
+- **Price fetch:** 5 categories in parallel over a single HTTP/2 connection
+- **Matching:** resolution cache + length-bucketed fuzzy index avoid repeated Levenshtein work
+
+### 🛡️ Stability
+- **Atomic price snapshot** — prevents torn reads during background refresh
+- **GDI handle leak** fixed in overlay rendering
+- **Race condition fixes** — overlay concurrency, league-switch lifecycle, static flag reset
+- **WGC resource management** — COM reference leaks fixed, frame pool recreated on resolution change
 
 ### ⌨️ Hotkeys
 | Key | Action |
@@ -93,7 +135,7 @@ All settings live in `config.json` (created on first close):
 
 | Setting | Default | Description |
 |---|---|---|
-| `CaptureBackend` | `"Auto"` | Screen capture method: `"Auto"` (WGC + GDI fallback) or `"GDI"` |
+| `CaptureBackend` | `"Auto"` | Screen capture: `"Auto"` (WGC + GDI fallback) or `"GDI"` |
 | `RegionRect` | — | Calibrated screen region (set via `F4`) |
 | `OverlayXOffset` | `0` | Horizontal offset of the price overlay |
 | `LeagueName` | — | Active poe.ninja league |
@@ -114,15 +156,17 @@ All settings live in `config.json` (created on first close):
 
 ---
 
-## 📈 Performance
+## 📝 Changelog
 
-Designed to be lightweight and unobtrusive:
+See [**CHANGELOG.md**](CHANGELOG.md) for the full version history.
 
-- **OCR interval:** 150ms while panel open (~6.7 reads/s) — sub-200ms price turnaround
-- **Idle polling:** 300ms while panel closed (~3.3 captures/s) — minimal idle CPU
-- **Overlay:** only repaints when visible state changes; render buffer cached
-- **Price fetch:** 5 categories fetched in parallel over a single HTTP/2 connection
-- **Matching:** resolution cache + length-bucketed fuzzy index avoid repeated Levenshtein work
+---
+
+## 🔗 Links
+
+- **Upstream repo:** [pedro-quiterio/PoeAncientsPriceHelper](https://github.com/pedro-quiterio/PoeAncientsPriceHelper)
+- **PR:** [#18 — Full Performance & Stability Overhaul](https://github.com/pedro-quiterio/PoeAncientsPriceHelper/pull/18)
+- **Release:** [v2.0.0 download](../../releases/tag/v2.0.0)
 
 ---
 
