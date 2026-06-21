@@ -168,6 +168,20 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // If an update was staged this session but the user didn't click "Update now", apply it
+        // silently as we close so the next launch is already on the new version. Update.exe waits for
+        // this process to exit, swaps current\, and does NOT relaunch (the user chose to quit).
+        // Best-effort: if nothing is staged or the updater isn't available, just exit normally.
+        try
+        {
+            if (Current?.MainWindow is MainWindow mw &&
+                mw.StagedUpdateManager is { } mgr && mw.StagedUpdate is { } update)
+            {
+                mgr.WaitExitThenApplyUpdates(update, silent: true, restart: false);
+            }
+        }
+        catch { /* nothing staged / updater unavailable — exit normally */ }
+
         _hook?.Dispose();
         _instanceMutex?.Dispose();
         base.OnExit(e);
