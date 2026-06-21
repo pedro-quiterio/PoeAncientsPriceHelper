@@ -23,7 +23,7 @@
     <AssemblyTitle>Poe Ancients Price Helper</AssemblyTitle>
     <Product>Poe Ancients Price Helper</Product>
     <Description>Screen overlay for Path of Exile 2 that OCRs the currency-exchange panel and shows live poe.ninja prices.</Description>
-    <Version>2.2.0</Version>
+    <Version>3.0.0</Version>
     <Authors>pedro</Authors>
     <Company>pedro</Company>
     <Copyright>Copyright © 2026 pedro</Copyright>
