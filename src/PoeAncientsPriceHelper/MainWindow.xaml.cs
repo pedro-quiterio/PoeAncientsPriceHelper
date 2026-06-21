@@ -3,6 +3,8 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
 using SharpHook.Data;
+using Velopack;
+using Velopack.Sources;
 
 namespace PoeAncientsPriceHelper;
 
@@ -88,44 +90,40 @@ public partial class MainWindow : Window
         _ = CheckForUpdatesAsync();
     }
 
-    // Quietly check GitHub for a newer release on startup. On success with a higher version, show a
-    // red "update available" link; on any failure (offline, rate-limited, API shape change) do nothing.
-    private string? _updateUrl;
+    // Check GitHub Releases for a newer build via Velopack on startup. If one is found, eagerly
+    // download/stage it in the background so both "Update now" (the link below) and the silent
+    // apply-on-exit (#14) are instant. Only works from an installed build — in a dev/unpacked run
+    // UpdateManager.IsInstalled is false and this no-ops. Any failure (offline, rate-limited, not
+    // installed) is swallowed: the link just stays hidden, exactly as the old check did. Stable only
+    // (prerelease: false). The manager + staged UpdateInfo are retained for the on-exit apply (#14).
+    private UpdateManager? _updateManager;
+    private UpdateInfo? _stagedUpdate;
+    internal UpdateManager? StagedUpdateManager => _updateManager;
+    internal UpdateInfo? StagedUpdate => _stagedUpdate;
 
     private async Task CheckForUpdatesAsync()
     {
         try
         {
-            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            if (current is null) return;
+            var mgr = new UpdateManager(new GithubSource(
+                "https://github.com/pedro-quiterio/PoeAncientsPriceHelper", null, prerelease: false));
+            if (!mgr.IsInstalled) return;   // dev / unpacked run — nothing to update
 
-            var req = new HttpRequestMessage(HttpMethod.Get,
-                "https://api.github.com/repos/pedro-quiterio/PoeAncientsPriceHelper/releases/latest");
-            req.Headers.TryAddWithoutValidation("User-Agent", "PoeAncientsPriceHelper");  // GitHub 403s without one
-            req.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
+            var info = await mgr.CheckForUpdatesAsync();
+            if (info is null) return;       // already on the latest release
 
-            var resp = await _http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return;
+            await mgr.DownloadUpdatesAsync(info);   // stage now so applying is instant
+            _updateManager = mgr;
+            _stagedUpdate = info;
 
-            var json = await resp.Content.ReadAsStringAsync();
-            var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
-            var tag = (string?)obj["tag_name"];
-            if (string.IsNullOrWhiteSpace(tag) || !Version.TryParse(tag.TrimStart('v', 'V'), out var latest))
-                return;
-
-            // Compare Major.Minor.Build only (ignore revision); only flag a genuinely newer release.
-            var cur = new Version(current.Major, current.Minor, Math.Max(current.Build, 0));
-            var rem = new Version(latest.Major, latest.Minor, Math.Max(latest.Build, 0));
-            if (rem <= cur) return;
-
-            _updateUrl = (string?)obj["html_url"];
+            var version = info.TargetFullRelease.Version;
             _ = Dispatcher.BeginInvoke(() =>
             {
-                UpdateLink.Text = $"⬆ Update available: v{rem.Major}.{rem.Minor}.{rem.Build} — click to download";
+                UpdateLink.Text = $"⬆ Update now: v{version} — click to install & restart";
                 UpdateLink.Visibility = Visibility.Visible;
             });
         }
-        catch { /* offline / rate-limited / shape change — fail silently, leave the link hidden */ }
+        catch { /* offline / rate-limited / not installed — fail silently, leave the link hidden */ }
     }
 
     private void CreditsLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -135,14 +133,15 @@ public partial class MainWindow : Window
 
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (string.IsNullOrEmpty(_updateUrl)) return;
+        if (_updateManager is null || _stagedUpdate is null) return;
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateUrl) { UseShellExecute = true });
+            // Already staged on startup, so this is instant: swap current\ and relaunch the new version.
+            _updateManager.ApplyUpdatesAndRestart(_stagedUpdate);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[Update] failed to open browser: {ex.Message}");
+            Console.Error.WriteLine($"[Update] apply failed: {ex.Message}");
         }
     }
 
