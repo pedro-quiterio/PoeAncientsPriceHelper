@@ -98,8 +98,6 @@ public partial class MainWindow : Window
     // (prerelease: false). The manager + staged UpdateInfo are retained for the on-exit apply (#14).
     private UpdateManager? _updateManager;
     private UpdateInfo? _stagedUpdate;
-    internal UpdateManager? StagedUpdateManager => _updateManager;
-    internal UpdateInfo? StagedUpdate => _stagedUpdate;
 
     // Update feed: GitHub Releases in production. If POEPRICE_UPDATE_FEED names a local folder (a
     // `vpk pack` output dir), read from it via SimpleFileSource instead — that lets the full
@@ -121,14 +119,19 @@ public partial class MainWindow : Window
         try
         {
             var mgr = new UpdateManager(ResolveUpdateSource());
+            AppPaths.LogUpdate($"check start; IsInstalled={mgr.IsInstalled}");
             if (!mgr.IsInstalled) return;   // dev / unpacked run — nothing to update
 
             var info = await mgr.CheckForUpdatesAsync();
-            if (info is null) return;       // already on the latest release
+            if (info is null) { AppPaths.LogUpdate("no update available"); return; }
 
+            AppPaths.LogUpdate($"found v{info.TargetFullRelease.Version}; downloading…");
             await mgr.DownloadUpdatesAsync(info);   // stage now so applying is instant
             _updateManager = mgr;
             _stagedUpdate = info;
+            App.PendingUpdateManager = mgr;   // App.OnExit reads these — MainWindow is already gone by then
+            App.PendingUpdate = info;
+            AppPaths.LogUpdate($"staged v{info.TargetFullRelease.Version} — ready to apply");
 
             var version = info.TargetFullRelease.Version;
             _ = Dispatcher.BeginInvoke(() =>
@@ -137,7 +140,7 @@ public partial class MainWindow : Window
                 UpdateLink.Visibility = Visibility.Visible;
             });
         }
-        catch { /* offline / rate-limited / not installed — fail silently, leave the link hidden */ }
+        catch (Exception ex) { AppPaths.LogUpdate($"check failed: {ex.GetType().Name}: {ex.Message}"); }
     }
 
     private void CreditsLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)

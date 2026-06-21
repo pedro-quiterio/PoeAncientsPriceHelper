@@ -19,4 +19,13 @@ internal static class AppPaths
     });
 
     public static string DataDir => LazyDataDir.Value;
+
+    // Append-only breadcrumb log for the auto-updater. The update path is otherwise silent (failures
+    // are swallowed so a flaky GitHub never bothers the user), which makes field issues impossible to
+    // diagnose — this gives a minimal trail in %LocalAppData%\...\update.log without any UI noise.
+    public static void LogUpdate(string message)
+    {
+        try { File.AppendAllText(Path.Combine(DataDir, "update.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}  {message}{Environment.NewLine}"); }
+        catch { /* logging must never throw */ }
+    }
 }

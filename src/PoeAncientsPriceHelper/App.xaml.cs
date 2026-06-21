@@ -10,6 +10,13 @@ namespace PoeAncientsPriceHelper;
 public partial class App : System.Windows.Application
 {
     internal static bool DebugMode { get; private set; }
+
+    // Set by MainWindow once an update is downloaded/staged. Held statically (not read off MainWindow)
+    // because under ShutdownMode=OnMainWindowClose the main window is already closed when OnExit runs,
+    // so Application.MainWindow is null there — reading it always missed the staged update and the
+    // silent on-exit apply never fired (#14).
+    internal static Velopack.UpdateManager? PendingUpdateManager;
+    internal static Velopack.UpdateInfo? PendingUpdate;
     private TaskPoolGlobalHook? _hook;
     private bool _leftCtrlDown;
 
@@ -174,13 +181,18 @@ public partial class App : System.Windows.Application
         // Best-effort: if nothing is staged or the updater isn't available, just exit normally.
         try
         {
-            if (Current?.MainWindow is MainWindow mw &&
-                mw.StagedUpdateManager is { } mgr && mw.StagedUpdate is { } update)
+            if (PendingUpdateManager is { } mgr && PendingUpdate is { } update)
             {
+                AppPaths.LogUpdate($"OnExit: applying staged v{update.TargetFullRelease.Version} (WaitExitThenApplyUpdates)");
                 mgr.WaitExitThenApplyUpdates(update, silent: true, restart: false);
+                AppPaths.LogUpdate("OnExit: WaitExitThenApplyUpdates returned (Update.exe will swap after exit)");
+            }
+            else
+            {
+                AppPaths.LogUpdate("OnExit: nothing staged to apply");
             }
         }
-        catch { /* nothing staged / updater unavailable — exit normally */ }
+        catch (Exception ex) { AppPaths.LogUpdate($"OnExit: apply failed: {ex.GetType().Name}: {ex.Message}"); }
 
         _hook?.Dispose();
         _instanceMutex?.Dispose();
