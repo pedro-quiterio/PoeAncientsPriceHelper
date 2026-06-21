@@ -138,6 +138,13 @@ public partial class MainWindow : Window
             {
                 UpdateLink.Text = $"⬆ Update now: v{version} — click to install & restart";
                 UpdateLink.Visibility = Visibility.Visible;
+                // Test seam (parallels POEPRICE_UPDATE_FEED): drive the real "Update now" relaunch path
+                // without a synthetic mouse click. Never set in production.
+                if (Environment.GetEnvironmentVariable("POEPRICE_TEST_UPDATE_NOW") == "1")
+                {
+                    AppPaths.LogUpdate("test seam: auto-invoking Update now");
+                    ApplyUpdateNow();
+                }
             });
         }
         catch (Exception ex) { AppPaths.LogUpdate($"check failed: {ex.GetType().Name}: {ex.Message}"); }
@@ -148,16 +155,21 @@ public partial class MainWindow : Window
         new CreditsWindow { Owner = this }.ShowDialog();
     }
 
-    private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => ApplyUpdateNow();
+
+    // Apply the already-staged update and relaunch into the new version. Invoked by the "Update now"
+    // link, and by the POEPRICE_TEST_UPDATE_NOW test seam so the relaunch path is exercised directly.
+    internal void ApplyUpdateNow()
     {
         if (_updateManager is null || _stagedUpdate is null) return;
         try
         {
-            // Already staged on startup, so this is instant: swap current\ and relaunch the new version.
-            _updateManager.ApplyUpdatesAndRestart(_stagedUpdate);
+            AppPaths.LogUpdate($"applying v{_stagedUpdate.TargetFullRelease.Version} + restart (Update now)");
+            _updateManager.ApplyUpdatesAndRestart(_stagedUpdate);   // instant — already staged
         }
         catch (Exception ex)
         {
+            AppPaths.LogUpdate($"apply-now failed: {ex.GetType().Name}: {ex.Message}");
             Console.Error.WriteLine($"[Update] apply failed: {ex.Message}");
         }
     }
