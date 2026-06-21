@@ -101,12 +101,26 @@ public partial class MainWindow : Window
     internal UpdateManager? StagedUpdateManager => _updateManager;
     internal UpdateInfo? StagedUpdate => _stagedUpdate;
 
+    // Update feed: GitHub Releases in production. If POEPRICE_UPDATE_FEED names a local folder (a
+    // `vpk pack` output dir), read from it via SimpleFileSource instead — that lets the full
+    // check → download → apply → restart cycle (and the on-exit apply) be tested from disk on one
+    // machine, with no public release. Run the *installed* app (Setup.exe) with the var set and a
+    // newer-versioned package in the folder. See .claude/issues/15.
+    private const string GithubRepoUrl = "https://github.com/pedro-quiterio/PoeAncientsPriceHelper";
+
+    private static IUpdateSource ResolveUpdateSource()
+    {
+        var localFeed = Environment.GetEnvironmentVariable("POEPRICE_UPDATE_FEED");
+        if (!string.IsNullOrWhiteSpace(localFeed))
+            return new SimpleFileSource(new DirectoryInfo(localFeed));
+        return new GithubSource(GithubRepoUrl, null, prerelease: false);
+    }
+
     private async Task CheckForUpdatesAsync()
     {
         try
         {
-            var mgr = new UpdateManager(new GithubSource(
-                "https://github.com/pedro-quiterio/PoeAncientsPriceHelper", null, prerelease: false));
+            var mgr = new UpdateManager(ResolveUpdateSource());
             if (!mgr.IsInstalled) return;   // dev / unpacked run — nothing to update
 
             var info = await mgr.CheckForUpdatesAsync();
