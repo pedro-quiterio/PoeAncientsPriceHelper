@@ -28,7 +28,7 @@ internal sealed class IconCache : IDisposable
     public IconCache(HttpClient http, string? baseDir = null)
     {
         _http = http;
-        _baseDir = baseDir ?? AppContext.BaseDirectory;
+        _baseDir = baseDir ?? AppPaths.DataDir;
     }
 
     public async Task LoadAsync()

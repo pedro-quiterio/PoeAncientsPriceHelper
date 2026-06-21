@@ -194,7 +194,7 @@ public partial class App : System.Windows.Application
 
     private static void RunOcrTest(string imagePath)
     {
-        var outPath = System.IO.Path.Combine(AppContext.BaseDirectory, "ocr_test.txt");
+        var outPath = System.IO.Path.Combine(AppPaths.DataDir, "ocr_test.txt");
         var lines = new List<string>();
         void Out(string s) => lines.Add(s);
         try

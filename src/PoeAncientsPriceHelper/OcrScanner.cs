@@ -67,7 +67,7 @@ internal sealed class OcrScanner
         // for end users this would be needless disk churn (~every 100ms while a panel mis-detects).
         if (_debug && rows.Count <= 2)
         {
-            try { upscaled.Save(Path.Combine(AppContext.BaseDirectory, "debug_ocr.png"), System.Drawing.Imaging.ImageFormat.Png); }
+            try { upscaled.Save(Path.Combine(AppPaths.DataDir, "debug_ocr.png"), System.Drawing.Imaging.ImageFormat.Png); }
             catch { /* best-effort diagnostic */ }
         }
         return rows;

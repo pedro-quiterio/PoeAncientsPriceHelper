@@ -189,7 +189,7 @@ internal sealed class PriceRepository : IDisposable
         {
             var fullPath = Path.IsPathRooted(path)
                 ? path
-                : Path.Combine(AppContext.BaseDirectory, path);
+                : Path.Combine(AppPaths.DataDir, path);
             if (!File.Exists(fullPath)) return;
             var json = File.ReadAllText(fullPath);
             var overrides = JsonConvert.DeserializeObject<Dictionary<string, CustomPriceEntry>>(json);

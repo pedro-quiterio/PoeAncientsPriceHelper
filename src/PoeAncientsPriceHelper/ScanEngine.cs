@@ -76,7 +76,7 @@ internal sealed class ScanEngine : IDisposable
     {
         // Keep _logPath assigned even when not debugging so Log() never throws on a null/empty
         // path; only truncate the file when debug logging is actually enabled.
-        _logPath = Path.Combine(AppContext.BaseDirectory, "scan_log.txt");
+        _logPath = Path.Combine(AppPaths.DataDir, "scan_log.txt");
         if (App.DebugMode)
             File.WriteAllText(_logPath, "");
 

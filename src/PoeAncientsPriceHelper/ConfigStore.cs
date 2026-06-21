@@ -34,5 +34,5 @@ internal static class ConfigStore
     }
 
     private static string PathFor(string? dir) =>
-        Path.Combine(dir ?? AppContext.BaseDirectory, FileName);
+        Path.Combine(dir ?? AppPaths.DataDir, FileName);
 }
