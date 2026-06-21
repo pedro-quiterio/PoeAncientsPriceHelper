@@ -138,6 +138,98 @@ public class PriceRepositoryTests
         Assert.All(handler.Referers, r => Assert.Contains(expectedSlug, r));
     }
 
+    // Items that appear on poe.ninja but have no trading data come back with primaryValue: null.
+    // They should be stored with HasMarketData: false so the overlay can show "no info" rather
+    // than hiding the row entirely — the user should know the item was recognised.
+    [Fact]
+    public async Task NullPrimaryValue_SetsHasMarketDataFalse()
+    {
+        const string response = """
+            {
+              "items": [
+                { "id": "chilling-flux", "name": "Chilling Flux" },
+                { "id": "mystery-item",  "name": "Mystery Item" }
+              ],
+              "lines": [
+                { "id": "chilling-flux", "primaryValue": 0.5 },
+                { "id": "mystery-item",  "primaryValue": null }
+              ],
+              "core": { "primary": "divine", "rates": { "exalted": 80.0 } }
+            }
+            """;
+
+        using var http = FakeHttp(response);
+        using var dir = new TempDir();
+        var repo = new PriceRepository(http);
+        await repo.InitialFetchAsync(DefaultConfig(dir.Path));
+
+        Assert.True(repo.Prices.ContainsKey("mystery item"));
+        var entry = repo.Prices["mystery item"];
+        Assert.False(entry.HasMarketData);
+        Assert.Equal(0m, entry.DivineValue);
+        Assert.Equal(0m, entry.ExaltedValue);
+
+        // The item with real data is unaffected.
+        Assert.True(repo.Prices["chilling flux"].HasMarketData);
+    }
+
+    // custom_prices.json keys are run through NameNormalizer so users can write display names
+    // ("Chilling Flux") instead of pre-normalised keys ("chilling flux") without breaking lookups.
+    [Fact]
+    public async Task CustomOverride_AcceptsUnnormalizedKey()
+    {
+        using var http = FakeHttp(FakeApiResponse);
+        using var dir = new TempDir();
+        File.WriteAllText(Path.Combine(dir.Path, "custom_prices.json"),
+            """{"Chilling Flux":{"divineValue":3.0,"exaltedValue":240.0}}""");
+
+        var repo = new PriceRepository(http);
+        await repo.InitialFetchAsync(DefaultConfig(dir.Path));
+
+        Assert.Equal(3.0m, repo.Prices["chilling flux"].DivineValue);
+    }
+
+    // Malformed custom_prices.json must not crash the app — the error is logged and the
+    // poe.ninja prices are kept as-is.
+    [Fact]
+    public async Task CustomOverride_MalformedJson_IsIgnoredSilently()
+    {
+        using var http = FakeHttp(FakeApiResponse);
+        using var dir = new TempDir();
+        File.WriteAllText(Path.Combine(dir.Path, "custom_prices.json"), "{ not valid json !!!");
+
+        var repo = new PriceRepository(http);
+        await repo.InitialFetchAsync(DefaultConfig(dir.Path));
+
+        // poe.ninja data survives the bad override file.
+        Assert.True(repo.Prices.ContainsKey("chilling flux"));
+        Assert.Equal(0.5m, repo.Prices["chilling flux"].DivineValue);
+    }
+
+    // A response missing the `core` block (e.g. an API change or truncation) must not throw.
+    // With no core, `primary` falls back to "divine", so divinePerPrimary is 1 and the price is
+    // taken verbatim from primaryValue — the item is still usable, not zeroed or dropped.
+    [Fact]
+    public async Task MissingCoreBlock_FallsBackToDivinePrimary()
+    {
+        const string response = """
+            {
+              "items": [{ "id": "chilling-flux", "name": "Chilling Flux" }],
+              "lines": [{ "id": "chilling-flux", "primaryValue": 0.5 }]
+            }
+            """;
+
+        using var http = FakeHttp(response);
+        using var dir = new TempDir();
+        var repo = new PriceRepository(http);
+        var ex = await Record.ExceptionAsync(() => repo.InitialFetchAsync(DefaultConfig(dir.Path)));
+        Assert.Null(ex);
+
+        // Core absent → primary defaults to "divine" → DivineValue == primaryValue.
+        Assert.True(repo.Prices.ContainsKey("chilling flux"));
+        Assert.Equal(0.5m, repo.Prices["chilling flux"].DivineValue);
+    }
+
     [Theory]
     [InlineData("Support: Scattering Flame", "support scattering flame")]
     [InlineData("CHILLING FLUX", "chilling flux")]
