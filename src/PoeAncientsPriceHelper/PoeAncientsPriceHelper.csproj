@@ -14,6 +14,10 @@
          the manifest is the only thing that actually applies DPI awareness here. See app.manifest. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <RootNamespace>PoeAncientsPriceHelper</RootNamespace>
+    <!-- Explicit entry point: VelopackApp.Build().Run() must execute before any other startup logic
+         (install/update/uninstall hooks). WPF would otherwise auto-generate Main from App.xaml's
+         ApplicationDefinition; we demote App.xaml to a Page (below) and own Main in Program.cs. -->
+    <StartupObject>PoeAncientsPriceHelper.Program</StartupObject>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyTitle>Poe Ancients Price Helper</AssemblyTitle>
@@ -29,11 +33,20 @@
     <Resource Include="app.ico" />
   </ItemGroup>
 
+  <!-- Demote App.xaml from ApplicationDefinition (which would generate its own Main) to a Page, so
+       Program.Main is the single entry point. App.InitializeComponent() still applies StartupUri /
+       ShutdownMode / resources exactly as before. -->
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" SubType="Designer" Generator="MSBuild:Compile" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="PoeAncientsPriceHelper.Tests" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="SharpHook" Version="7.1.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
