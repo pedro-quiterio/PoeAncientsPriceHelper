@@ -66,6 +66,16 @@ public partial class MainWindow : Window
             DiagnosticsLink.ToolTip = "Open the folder with scan_log.txt and debug_ocr.png";
         }
         await StartupAsync();
+        // Auto-start QoL: with a calibrated region and the option enabled, begin scanning and drop
+        // straight to the tray, so the user just opens the app and it runs (saving the Start + minimize
+        // clicks). Skipped under --debug (keep the window and console visible for troubleshooting) and
+        // when not calibrated (the user has to calibrate first, so the window must stay up for input).
+        // _engine is null here on a fresh load (StartupAsync only restarts it across a league change).
+        if (_config.AutoStart && _config.IsCalibrated && !App.DebugMode && _engine is null)
+        {
+            ToggleStartStop();                     // start the engine; flips the button to Stop
+            WindowState = WindowState.Minimized;   // OnStateChanged hides to tray + shows the balloon once
+        }
         // Fire-and-forget, once per launch (not inside StartupAsync, which re-runs on league change).
         // A slow/hung GitHub response must never delay the price fetch or the Start button.
         _ = CheckForUpdatesAsync();
