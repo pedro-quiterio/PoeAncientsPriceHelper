@@ -29,6 +29,10 @@ internal sealed class AppConfig
     public string CaptureBackend { get; set; } = "Auto";
     // UI theme preset name. Default "Toxic" (dark green gradient).
     public string Theme { get; set; } = "Toxic";
+    // When true (and a region is calibrated), launching the app auto-starts scanning and minimizes to
+    // the tray — "just open it and it runs". Missing in older configs → true (the new default behaviour).
+    // Skipped under --debug so a troubleshooting session keeps the window and console visible.
+    public bool AutoStart { get; set; } = true;
 
     public Rectangle RegionRect
     {

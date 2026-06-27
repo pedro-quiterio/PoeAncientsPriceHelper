@@ -10,33 +10,6 @@ namespace PoeAncientsPriceHelper;
 
 public partial class MainWindow : Window
 {
-    // Dark theme presets. Only the window background changes — button colors are hardcoded in
-    // FlatButton and are never affected by theme switches.
-    private static readonly (string Name, System.Windows.Media.Brush Background)[] Themes =
-    [
-        ("Midnight", CreateSolid(0x1C, 0x1C, 0x1C)),
-        ("Obsidian", CreateGradient(0x05, 0x05, 0x05, 0x14, 0x14, 0x14)),
-        ("Abyss",    CreateGradient(0x0A, 0x0F, 0x1E, 0x0D, 0x15, 0x28)),
-        ("Ember",    CreateGradient(0x1A, 0x0F, 0x08, 0x0F, 0x08, 0x05)),
-        ("Toxic",    CreateGradient(0x0A, 0x12, 0x08, 0x0D, 0x1A, 0x0A)),
-    ];
-
-    private static System.Windows.Media.Brush CreateSolid(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
-
-    private static System.Windows.Media.Brush CreateGradient(byte r1, byte g1, byte b1, byte r2, byte g2, byte b2)
-    {
-        var brush = new LinearGradientBrush(
-            System.Windows.Media.Color.FromRgb(r1, g1, b1),
-            System.Windows.Media.Color.FromRgb(r2, g2, b2), 90);
-        brush.Freeze();
-        return brush;
-    }
-
     private AppConfig _config = new();
     private PriceRepository? _repo;
     private IconCache? _icons;
@@ -244,43 +217,21 @@ public partial class MainWindow : Window
         LeagueBox.SelectedItem = _config.AvailableLeagues.Contains(_config.LeagueName)
             ? _config.LeagueName
             : _config.AvailableLeagues.FirstOrDefault();
-        // Arm the global hook with all three persisted bindings and mirror them into the labels.
-        var startStop = HotkeyBinding.Parse(_config.StartStopHotkey);
-        var debug = HotkeyBinding.Parse(_config.DebugHotkey);
-        var calibrate = HotkeyBinding.Parse(_config.CalibrateHotkey);
-        HotkeyLabel.Text = HotkeyBinding.Display(startStop);
-        DebugHotkeyLabel.Text = HotkeyBinding.Display(debug);
-        CalibrateHotkeyLabel.Text = HotkeyBinding.Display(calibrate);
-        App.SetStartStopKey(startStop);
-        App.SetDebugKey(debug);
-        App.SetCalibrateKey(calibrate);
+        // Arm the global hook with all three persisted bindings. The keybind UI lives in the Settings
+        // window now, but the hook must be armed at startup so the hotkeys work before it's ever opened.
+        App.SetStartStopKey(HotkeyBinding.Parse(_config.StartStopHotkey));
+        App.SetDebugKey(HotkeyBinding.Parse(_config.DebugHotkey));
+        App.SetCalibrateKey(HotkeyBinding.Parse(_config.CalibrateHotkey));
         UpdateRegionLabel();
-        PopulateThemeBox();
+        ThemePresets.Apply(ThemePresets.Resolve(_config.Theme));
         _loading = false;
     }
 
-    private void PopulateThemeBox()
-    {
-        ThemeBox.ItemsSource = Themes.Select(t => t.Name).ToArray();
-        var saved = Themes.Any(t => t.Name == _config.Theme) ? _config.Theme : "Toxic";
-        ThemeBox.SelectedItem = saved;
-        ApplyTheme(saved);
-    }
-
-    private void ApplyTheme(string name)
-    {
-        var preset = Array.Find(Themes, t => t.Name == name);
-        if (preset.Name is null) return;
-        Resources["ApplicationBackgroundBrush"] = preset.Background;
-    }
-
-    private void ThemeBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        if (_loading || ThemeBox.SelectedItem is not string theme) return;
-        _config.Theme = theme;
-        ConfigStore.Save(_config);
-        ApplyTheme(theme);
-    }
+    // Opens the modal Settings window. It edits the same _config instance and persists each change, so
+    // nothing needs syncing back here: theme is applied app-wide live, hotkey rebinds re-arm the hook,
+    // and capture/auto-start are read straight from _config when next needed.
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
+        new SettingsWindow(_config) { Owner = this }.ShowDialog();
 
     private void UpdateRegionLabel()
     {
@@ -498,80 +449,4 @@ public partial class MainWindow : Window
         }
     }
 
-    // The rebind in progress: which action, and the button/label to update. Only one runs at a time.
-    private HotkeyBinding.Action _rebindAction;
-    private System.Windows.Controls.Button? _rebindButton;
-    private System.Windows.Controls.TextBlock? _rebindLabel;
-
-    private void RebindButton_Click(object sender, RoutedEventArgs e) =>
-        BeginRebind(HotkeyBinding.Action.StartStop, RebindButton, HotkeyLabel);
-
-    private void RebindDebugButton_Click(object sender, RoutedEventArgs e) =>
-        BeginRebind(HotkeyBinding.Action.Debug, RebindDebugButton, DebugHotkeyLabel);
-
-    private void RebindCalibrateButton_Click(object sender, RoutedEventArgs e) =>
-        BeginRebind(HotkeyBinding.Action.Calibrate, RebindCalibrateButton, CalibrateHotkeyLabel);
-
-    private void BeginRebind(HotkeyBinding.Action action, System.Windows.Controls.Button button,
-                             System.Windows.Controls.TextBlock label)
-    {
-        _rebindAction = action;
-        _rebindButton = button;
-        _rebindLabel = label;
-        // Disable all three rebind buttons so a second capture can't start mid-rebind.
-        SetRebindButtonsEnabled(false);
-        button.Content = "Press a key… (Esc to cancel)";
-        App.BeginHotkeyCapture(action, OnHotkeyCaptured);   // outcome arrives on the UI thread
-    }
-
-    // Invoked (marshalled to the UI thread) when the global hook resolves a rebind capture.
-    private void OnHotkeyCaptured(App.CaptureOutcome outcome, KeyCode code)
-    {
-        switch (outcome)
-        {
-            case App.CaptureOutcome.Captured:
-                switch (_rebindAction)
-                {
-                    case HotkeyBinding.Action.StartStop:
-                        _config.StartStopHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetStartStopKey(code);
-                        break;
-                    case HotkeyBinding.Action.Debug:
-                        _config.DebugHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetDebugKey(code);
-                        break;
-                    case HotkeyBinding.Action.Calibrate:
-                        _config.CalibrateHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetCalibrateKey(code);
-                        break;
-                }
-                ConfigStore.Save(_config);
-                if (_rebindLabel is not null) _rebindLabel.Text = HotkeyBinding.Display(code);
-                EndRebind();
-                break;
-            case App.CaptureOutcome.Reserved:
-                // Still listening — tell the user why that key won't take, keep the prompt up.
-                if (_rebindButton is not null)
-                    _rebindButton.Content = $"{HotkeyBinding.Display(code)} is in use — try another";
-                break;
-            case App.CaptureOutcome.Cancelled:
-                EndRebind();
-                break;
-        }
-    }
-
-    private void EndRebind()
-    {
-        if (_rebindButton is not null) _rebindButton.Content = "Rebind";
-        _rebindButton = null;
-        _rebindLabel = null;
-        SetRebindButtonsEnabled(true);
-    }
-
-    private void SetRebindButtonsEnabled(bool enabled)
-    {
-        RebindButton.IsEnabled = enabled;
-        RebindDebugButton.IsEnabled = enabled;
-        RebindCalibrateButton.IsEnabled = enabled;
-    }
 }

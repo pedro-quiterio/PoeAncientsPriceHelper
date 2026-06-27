@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Title="Poe Ancients Price Helper" Height="410" Width="500"
+        Title="Poe Ancients Price Helper" Height="340" Width="500"
         Icon="app.ico"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
@@ -62,8 +62,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -73,61 +71,41 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="League:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <ComboBox Grid.Row="0" Grid.Column="1" x:Name="LeagueBox" Margin="0,4" SelectionChanged="LeagueBox_SelectionChanged"/>
+        <!-- Header: gear opens the Settings window (keybinds, theme, capture mode, auto-start). -->
+        <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                x:Name="SettingsButton" Style="{StaticResource FlatButton}"
+                Content="⚙" FontSize="15"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Padding="8,2" Margin="0,0,0,4"
+                Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                ToolTip="Settings — hotkeys, theme, capture mode, auto-start"
+                Click="SettingsButton_Click"/>
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Region:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="RegionLabel" Text="Not calibrated" Foreground="#666" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="League:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="LeagueBox" Margin="0,4" SelectionChanged="LeagueBox_SelectionChanged"/>
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Start/Stop key:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
-            <TextBlock x:Name="HotkeyLabel" Text="F5" VerticalAlignment="Center"
-                       FontFamily="Consolas" FontSize="12" MinWidth="46"/>
-            <Button x:Name="RebindButton" Content="Rebind" Style="{StaticResource FlatButton}"
-                    Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
-                    FontSize="11" Padding="10,2"
-                    Click="RebindButton_Click"/>
-        </StackPanel>
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Region:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="RegionLabel" Text="Not calibrated" Foreground="#666" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center"/>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Debug overlay key:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
-            <TextBlock x:Name="DebugHotkeyLabel" Text="F3" VerticalAlignment="Center"
-                       FontFamily="Consolas" FontSize="12" MinWidth="46"/>
-            <Button x:Name="RebindDebugButton" Content="Rebind" Style="{StaticResource FlatButton}"
-                    Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
-                    FontSize="11" Padding="10,2"
-                    Click="RebindDebugButton_Click"/>
-        </StackPanel>
-
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Calibrate key:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
-            <TextBlock x:Name="CalibrateHotkeyLabel" Text="F4" VerticalAlignment="Center"
-                       FontFamily="Consolas" FontSize="12" MinWidth="46"/>
-            <Button x:Name="RebindCalibrateButton" Content="Rebind" Style="{StaticResource FlatButton}"
-                    Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
-                    FontSize="11" Padding="10,2"
-                    Click="RebindCalibrateButton_Click"/>
-        </StackPanel>
-
-        <Button Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+        <Button Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                 x:Name="CalibrateButton" Style="{StaticResource FlatButton}"
                 Content="Calibrate Region" Margin="0,10,0,0"
                 Background="#1A2A3A" Foreground="#66AAFF" BorderBrush="#336699"
                 Click="CalibrateButton_Click"/>
 
-        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                    x:Name="StatusLabel"
                    Text="Idle — prices not loaded"
                    Foreground="#666" FontSize="11" Margin="0,10,0,0"/>
 
-        <Button Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+        <Button Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                 x:Name="StartStopButton" Style="{StaticResource FlatButton}"
                 Content="Start" IsEnabled="False"
                 Margin="0,10,0,0"
                 Background="#1A3A1A" Foreground="#66FF66" BorderBrush="#337733"
                 Click="StartStopButton_Click"/>
 
-        <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2"
+        <StackPanel Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                     HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Orientation="Horizontal">
             <TextBlock x:Name="VersionLabel"
@@ -146,17 +124,12 @@
                        Cursor="Hand" TextDecorations="Underline" Margin="6,0,0,0"
                        ToolTip="Restart with logging enabled to capture a report for a bug"
                        MouseLeftButtonUp="DiagnosticsLink_Click"/>
-            <StackPanel Orientation="Vertical" Margin="12,0,0,0">
-                <TextBlock Text="Theme" Foreground="#999" FontSize="11" Margin="0,0,0,2"/>
-                <ComboBox x:Name="ThemeBox" FontSize="11" MinWidth="90"
-                          SelectionChanged="ThemeBox_SelectionChanged"/>
-            </StackPanel>
         </StackPanel>
 
         <!-- The update notice gets its own row directly above the bottom bar so its (variable-length)
-             text can never overlap the theme dropdown or the donate button. Collapsed when up to date,
-             and Row 9 is Auto, so it takes no space until an update is actually staged. -->
-        <TextBlock Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2"
+             text can never overlap the donate button. Collapsed when up to date, and Row 7 is Auto, so
+             it takes no space until an update is actually staged. -->
+        <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
                    x:Name="UpdateLink"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    TextAlignment="Center" Margin="0,0,0,8"
@@ -164,7 +137,7 @@
                    Cursor="Hand" Visibility="Collapsed" TextDecorations="Underline"
                    MouseLeftButtonUp="UpdateLink_Click"/>
 
-        <Button Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2"
+        <Button Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                 x:Name="DonateButton" Style="{StaticResource FlatButton}"
                 Content="☕ Buy me a coffee"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
