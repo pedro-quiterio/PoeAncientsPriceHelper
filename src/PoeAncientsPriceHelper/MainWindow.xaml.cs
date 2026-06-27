@@ -271,6 +271,7 @@ public partial class MainWindow : Window
 
         _repo = new PriceRepository(_http);
         _repo.PricesUpdated += OnPricesUpdated;   // keep the "last fetch" label live on each refresh
+        _repo.FetchFailed += OnFetchFailed;       // flag a failed fetch (red/amber) in the status label
         _icons = new IconCache(_http);
 
         await Task.WhenAll(
@@ -310,11 +311,56 @@ public partial class MainWindow : Window
         _ = CheckForUpdatesAsync();
     }
 
+    // Status-label colors: normal (matches the XAML default), amber when a refresh failed but prices
+    // from an earlier fetch are still showing, red when no prices have ever loaded.
+    private static readonly System.Windows.Media.Brush StatusNormalBrush = FrozenBrush(0x66, 0x66, 0x66);
+    private static readonly System.Windows.Media.Brush StatusStaleBrush = FrozenBrush(0xE0, 0xB0, 0x60);
+    private static readonly System.Windows.Media.Brush StatusFailBrush = FrozenBrush(0xFF, 0x55, 0x55);
+
+    private static System.Windows.Media.Brush FrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
     private void UpdateStatusLabel()
     {
         if (_repo is null) return;
+        // Called after a fetch completes (initial load + each successful refresh). If we still have no
+        // prices, the fetch failed — show the red state (the repo is retrying every 30s) rather than a
+        // misleading "0 items loaded". This also avoids a successful-path call clobbering the failure.
+        if (_repo.ItemCount == 0)
+        {
+            StatusLabel.Foreground = StatusFailBrush;
+            StatusLabel.Text = "Failed to get prices from poe.ninja — retrying…";
+            return;
+        }
         string fetched = _repo.LastFetchedAt is { } t ? t.ToString("MMM d HH:mm") : "never";
+        StatusLabel.Foreground = StatusNormalBrush;
         StatusLabel.Text = $"{_repo.ItemCount} items loaded  ·  last fetch {fetched}";
+    }
+
+    // A fetch failed (network error or 0 items). Prices already loaded from a prior fetch are kept, so
+    // distinguish "couldn't refresh, still showing the last set" (amber) from "never got any" (red).
+    // The repository retries every 30s until it succeeds, when OnPricesUpdated restores the normal label.
+    private void OnFetchFailed()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_repo is null) return;
+            if (_repo.ItemCount > 0)
+            {
+                string t = _repo.LastFetchedAt is { } at ? at.ToString("MMM d HH:mm") : "earlier";
+                StatusLabel.Foreground = StatusStaleBrush;
+                StatusLabel.Text = $"Couldn't refresh — retrying (showing last fetch {t})";
+            }
+            else
+            {
+                StatusLabel.Foreground = StatusFailBrush;
+                StatusLabel.Text = "Failed to get prices from poe.ninja — retrying…";
+            }
+        });
     }
 
     private void DonateButton_Click(object sender, RoutedEventArgs e)

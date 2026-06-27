@@ -29,6 +29,13 @@ internal sealed class PriceRepository : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private int _priceGeneration;
 
+    // Adaptive refresh cadence: normally every 30 min, but after a failed fetch (0 usable items) the
+    // timer re-arms every 30s until prices come back — so a launch/refresh that hit a transient
+    // poe.ninja outage recovers in seconds instead of being stuck behind the full 30-min interval.
+    private static readonly TimeSpan NormalInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(30);
+    private AppConfig? _refreshConfig;
+
     public PriceSnapshot Current => _snapshot;
     public IReadOnlyDictionary<string, PriceEntry> Prices => _snapshot.Prices;
     // Snapshot of the length-bucketed key index, for the fuzzy matcher in ScanEngine.
@@ -38,10 +45,16 @@ internal sealed class PriceRepository : IDisposable
     // Bumped each time _prices is replaced; ScanEngine uses it to invalidate its resolution cache.
     public int PriceGeneration => Volatile.Read(ref _priceGeneration);
 
-    // Raised after every successful fetch (initial + each 30-min background refresh) so the UI can
-    // refresh its "last fetch" label — which otherwise stays frozen at the startup time. Fires on a
+    // Raised after every successful fetch (initial + each background refresh) so the UI can refresh
+    // its "last fetch" label — which otherwise stays frozen at the startup time. Fires on a
     // thread-pool thread; subscribers must marshal to the UI thread.
     public event Action? PricesUpdated;
+
+    // Raised when a fetch fails (a network exception, or every request came back empty so we ended up
+    // with 0 usable items). The previous good snapshot is kept, not overwritten — so the overlay keeps
+    // showing the last prices — and the UI can flag the failure (ItemCount/LastFetchedAt tell it
+    // whether any prices were ever loaded). Not raised on shutdown cancellation. Fires off the UI thread.
+    public event Action? FetchFailed;
 
     // Only the 5 exchange categories whose items actually appear as Verisium Remnant rewards.
     // Other poe.ninja categories (Essences, SoulCores, Idols, Omens, Catalysts, etc.) belong to
@@ -58,12 +71,30 @@ internal sealed class PriceRepository : IDisposable
 
     public void StartAutoRefresh(AppConfig config)
     {
+        _refreshConfig = config;
         _timer?.Dispose();
-        _timer = new System.Threading.Timer(_ => Task.Run(() => FetchAndMergeAsync(config, _cts.Token)),
-            null, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30));
+        // Self-rescheduling (period = Infinite): each tick re-arms based on its own outcome, so the
+        // cadence adapts between 30 min (healthy) and 30s (retrying). The first delay reflects the
+        // initial fetch already done in InitialFetchAsync — retry fast if it produced nothing.
+        _timer = new System.Threading.Timer(RefreshTick, null,
+            ItemCount == 0 ? RetryInterval : NormalInterval, Timeout.InfiniteTimeSpan);
     }
 
-    private async Task FetchAndMergeAsync(AppConfig config, CancellationToken ct)
+    // Timer callback (async void is fine here: FetchAndMergeAsync swallows its own exceptions and
+    // never throws). Re-arms the one-shot timer to the next interval based on whether prices loaded.
+    private async void RefreshTick(object? _)
+    {
+        if (_cts.IsCancellationRequested) return;
+        bool ok = await FetchAndMergeAsync(_refreshConfig!, _cts.Token);
+        try { _timer?.Change(ok ? NormalInterval : RetryInterval, Timeout.InfiniteTimeSpan); }
+        catch (ObjectDisposedException) { /* disposed during shutdown — nothing to re-arm */ }
+    }
+
+    // Returns true if the fetch published at least one usable price. On failure (a network exception
+    // or 0 items) the previous good snapshot is left in place — a transient outage must not blank the
+    // overlay — and FetchFailed is raised so the UI can flag it. Shutdown cancellation returns false
+    // quietly (no event).
+    private async Task<bool> FetchAndMergeAsync(AppConfig config, CancellationToken ct)
     {
         try
         {
@@ -77,6 +108,16 @@ internal sealed class PriceRepository : IDisposable
                 foreach (var (name, entry) in entries)
                     dict[name] = entry;
             ApplyCustomOverride(dict, config.CustomPricesPath);
+
+            // Every request came back empty (poe.ninja down/blocking, bad league, etc.). Keep the last
+            // good snapshot so the overlay stays useful, flag the failure, and let the caller retry soon.
+            if (dict.Count == 0)
+            {
+                Console.Error.WriteLine("[PriceRepository] fetch produced 0 items — keeping last prices");
+                FetchFailed?.Invoke();
+                return false;
+            }
+
             var keysByLength = dict.Keys.GroupBy(k => k.Length).ToDictionary(g => g.Key, g => g.ToList());
             // Publish both atomically in a single volatile write so the scan loop never sees
             // a new Prices with a stale KeysByLength (or vice versa).
@@ -86,15 +127,19 @@ internal sealed class PriceRepository : IDisposable
             Interlocked.Increment(ref _priceGeneration);
             LastFetchedAt = DateTime.Now;
             PricesUpdated?.Invoke();
+            return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // Shutting down — abandon this cycle quietly. (A timeout, by contrast, is not
-            // cancellation-requested, so it falls through to the log below.)
+            // cancellation-requested, so it falls through to the failure handling below.)
+            return false;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[PriceRepository] fetch failed: {ex.Message}");
+            FetchFailed?.Invoke();
+            return false;
         }
     }
 
