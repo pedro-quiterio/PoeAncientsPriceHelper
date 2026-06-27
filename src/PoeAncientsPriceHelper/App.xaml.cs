@@ -218,6 +218,35 @@ public partial class App : System.Windows.Application
         catch { /* best-effort focus; the guard still prevents the second instance */ }
     }
 
+    // Relaunch with --debug so a user can capture diagnostics (scan_log.txt / debug_ocr.png) for a bug
+    // report — the old debug.cmd no longer ships with the Velopack build, so this is the only in-app way
+    // to turn logging on. The single-instance mutex is released first, on the UI thread that created it
+    // (the same thread as the caller), so the relaunched copy can take it; otherwise it would treat us as
+    // the running instance, focus our window, and exit — leaving nothing running. If the spawn fails we
+    // re-acquire the mutex so the guard is restored and the still-running app stays single-instance.
+    // Returns false if the exe path is unknown or the process failed to start.
+    internal static bool RelaunchWithDebug()
+    {
+        var exe = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exe)) return false;
+
+        try { _instanceMutex?.ReleaseMutex(); } catch { /* not owned / already released */ }
+        _instanceMutex?.Dispose();
+        _instanceMutex = null;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe, "--debug") { UseShellExecute = true });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Diagnostics] relaunch with --debug failed: {ex.Message}");
+            _instanceMutex = new Mutex(initiallyOwned: true, InstanceMutexName, out _);   // restore the guard
+            return false;
+        }
+    }
+
     private static void RunOcrTest(string imagePath)
     {
         var outPath = System.IO.Path.Combine(AppPaths.DataDir, "ocr_test.txt");

@@ -139,6 +139,13 @@
                        Cursor="Hand" TextDecorations="Underline" Margin="6,0,0,0"
                        ToolTip="Thanks to the people who contributed"
                        MouseLeftButtonUp="CreditsLink_Click"/>
+            <TextBlock Text="·" Foreground="#666" FontSize="11"
+                       VerticalAlignment="Bottom" Margin="6,0,0,0"/>
+            <TextBlock x:Name="DiagnosticsLink" Text="Diagnostics"
+                       Foreground="#999" FontSize="11" VerticalAlignment="Bottom"
+                       Cursor="Hand" TextDecorations="Underline" Margin="6,0,0,0"
+                       ToolTip="Restart with logging enabled to capture a report for a bug"
+                       MouseLeftButtonUp="DiagnosticsLink_Click"/>
             <StackPanel Orientation="Vertical" Margin="12,0,0,0">
                 <TextBlock Text="Theme" Foreground="#999" FontSize="11" Margin="0,0,0,2"/>
                 <ComboBox x:Name="ThemeBox" FontSize="11" MinWidth="90"

@@ -84,6 +84,14 @@ public partial class MainWindow : Window
     {
         _config = ConfigStore.Load();
         PopulateFields();
+        // When already running in debug mode the relaunch is pointless — repurpose the link to open the
+        // folder the logs land in. App.DebugMode is settled by now (it's set in App.OnStartup, before the
+        // window's Loaded fires).
+        if (App.DebugMode)
+        {
+            DiagnosticsLink.Text = "Open logs";
+            DiagnosticsLink.ToolTip = "Open the folder with scan_log.txt and debug_ocr.png";
+        }
         await StartupAsync();
         // Fire-and-forget, once per launch (not inside StartupAsync, which re-runs on league change).
         // A slow/hung GitHub response must never delay the price fetch or the Start button.
@@ -174,6 +182,43 @@ public partial class MainWindow : Window
     }
 
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => ApplyUpdateNow();
+
+    // "Diagnostics" link. In a normal run it offers to restart with --debug so the user can capture
+    // scan_log.txt / debug_ocr.png for a bug report (the old debug.cmd no longer ships with the Velopack
+    // build). When already running in debug mode it instead opens the folder those files land in.
+    private void DiagnosticsLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (App.DebugMode) { OpenDataFolder(); return; }
+
+        var choice = System.Windows.MessageBox.Show(this,
+            "Restart with diagnostics logging enabled?\n\n" +
+            "A console window will open and detailed logs (scan_log.txt and debug_ocr.png) will be " +
+            "written to your data folder so you can attach them to a bug report.\n\n" +
+            "The app will close and reopen now.",
+            "Diagnostics", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question);
+        if (choice != System.Windows.MessageBoxResult.OK) return;
+
+        if (App.RelaunchWithDebug())
+            Close();   // routes through Window_Closing for a clean shutdown; the new --debug copy takes over
+        else
+            System.Windows.MessageBox.Show(this,
+                "Couldn't restart in diagnostics mode. You can launch the app from a terminal with the " +
+                "--debug switch instead.",
+                "Diagnostics", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+    }
+
+    private void OpenDataFolder()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(AppPaths.DataDir) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Diagnostics] open data folder failed: {ex.Message}");
+        }
+    }
 
     // Apply the already-staged update and relaunch into the new version. Invoked by the "Update now"
     // link, and by the POEPRICE_TEST_UPDATE_NOW test seam so the relaunch path is exercised directly.
