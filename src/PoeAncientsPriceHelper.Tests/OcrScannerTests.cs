@@ -45,6 +45,11 @@ public class OcrScannerTests
     [InlineData("6xarcanist s etcher", "arcanist s etcher")]
     [InlineData("6x arcanist s etcher", "arcanist s etcher")]
     [InlineData("14xadaptive alloy", "adaptive alloy")]
+    // Non-Latin names must survive: the leading-noise strip is letter-class aware, not [a-z]-only.
+    // An ASCII-only strip ate whole Cyrillic names → "" → REJ:short on Russian clients (#39).
+    [InlineData("совершенная сфера усиления 3", "совершенная сфера усиления 3")]
+    [InlineData("сфера отмены 2", "сфера отмены 2")]
+    [InlineData("чародейский расплав уровень 20 1", "чародейский расплав уровень 20 1")]
     public void StripLeadingNoise_RemovesQuantityPrefix(string input, string expected)
     {
         Assert.Equal(expected, OcrScanner.StripLeadingNoise(input));

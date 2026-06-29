@@ -39,7 +39,10 @@ internal sealed class OcrScanner
     // BEFORE LeadingNoise, whose digit-token rule would otherwise swallow "6xarcanist" whole and
     // destroy the item name. Mirrors MultiplierPattern's "letter ok, trailing digit not" boundary.
     private static readonly Regex LeadingQuantity = new(@"^\s*\d{1,3}\s*x(?![0-9])", RegexOptions.Compiled);
-    private static readonly Regex LeadingNonAlpha = new(@"^[^a-z]+", RegexOptions.Compiled);
+    // \p{L} (any-script letter), not [a-z]: an ASCII-only class would treat every Cyrillic/Greek
+    // char as "non-alpha" and strip a whole non-Latin name to "" → REJ:short (#39). Leading digits
+    // and punctuation are still removed (digits are \p{N}); a leading accented Latin letter survives too.
+    private static readonly Regex LeadingNonAlpha = new(@"^[^\p{L}]+", RegexOptions.Compiled);
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
