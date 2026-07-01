@@ -87,7 +87,7 @@ internal sealed class ScanEngine : IDisposable
 
         Log($"START prices={_prices.ItemCount} icons={_icons.IsAvailable} region={_config.RegionRect}");
 
-        var scanner = new OcrScanner(Log, App.DebugMode);
+        var scanner = new OcrScanner(Log, App.DebugMode, _config.GameLanguage);
         var detector = new ListDetector();
         var sw = Stopwatch.StartNew();
         var slots = new List<RowSlot>();             // per-row accumulator: priced rows lock, misses keep retrying

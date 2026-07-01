@@ -77,6 +77,26 @@ public class OcrScannerTests
     }
 
     [Theory]
+    // The Game-language code drives which OCR recognizer is selected (#41). English (and empty/unset)
+    // returns null → use the Windows profile default; every other language pins its own recognizer.
+    [InlineData("ru", "ru")]
+    [InlineData("de", "de")]
+    [InlineData("fr", "fr")]
+    [InlineData("pt", "pt")]
+    // The app spells Spanish "sp" but Windows/BCP-47 uses "es".
+    [InlineData("sp", "es")]
+    [InlineData("SP", "es")]           // case-insensitive
+    [InlineData("  ru  ", "ru")]       // trimmed
+    [InlineData("en", null)]           // English → profile default, no override
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void OcrLanguageTag_MapsGameLanguageToRecognizerTag(string? gameLanguage, string? expected)
+    {
+        Assert.Equal(expected, OcrScanner.OcrLanguageTag(gameLanguage));
+    }
+
+    [Theory]
     [InlineData("14x adaptive alloy", 14)]
     [InlineData("3x rune of aldur", 3)]
     [InlineData("1 mystic alloy", 1)]              // no x marker → default 1

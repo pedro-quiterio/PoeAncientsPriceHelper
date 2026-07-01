@@ -57,13 +57,68 @@ internal sealed class OcrScanner
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
-    public OcrScanner(Action<string>? log = null, bool debug = false)
+    // gameLanguage is the app's Settings → Game language code (en/de/fr/pt/ru/sp); when non-English it
+    // pins the OCR recognizer to that language so a non-English client is read in its own script (#41).
+    public OcrScanner(Action<string>? log = null, bool debug = false, string? gameLanguage = null)
     {
-        _engine = OcrEngine.TryCreateFromUserProfileLanguages()
-            ?? OcrEngine.TryCreateFromLanguage(new Language("en-US"))
-            ?? throw new InvalidOperationException("Windows OCR is not available. Install an English OCR language pack in Windows language settings.");
+        _engine = CreateEngine(gameLanguage, log);
         _log = log;
         _debug = debug;
+    }
+
+    // Build the Windows OCR engine, pinning the recognizer to the selected game language when it isn't
+    // English. TryCreateFromUserProfileLanguages() — the old sole path — keys off the WINDOWS profile
+    // language list, NOT the installed recognizers or the app's setting, so a Russian client on an
+    // English Windows got the Latin recognizer and every Cyrillic name came back transliterated
+    // ("Сфера хаоса" → "@epa xaoca"), a guaranteed MISS (#41). Selecting the recognizer that matches
+    // the game language fixes it; if that recognizer isn't installed we fall back to the profile/English
+    // engine and log the genuine "install the OCR pack" case with the recognizers that ARE available.
+    private static OcrEngine CreateEngine(string? gameLanguage, Action<string>? log)
+    {
+        var tag = OcrLanguageTag(gameLanguage);
+        if (tag is not null)
+        {
+            try
+            {
+                var forLanguage = OcrEngine.TryCreateFromLanguage(new Language(tag));
+                if (forLanguage is not null)
+                {
+                    log?.Invoke($"OCR recognizer '{forLanguage.RecognizerLanguage.LanguageTag}' selected for game language '{gameLanguage}'");
+                    return forLanguage;
+                }
+                var available = string.Join(", ", OcrEngine.AvailableRecognizerLanguages.Select(l => l.LanguageTag));
+                log?.Invoke($"OCR recognizer for '{tag}' is not installed — falling back to the Windows profile/English recognizer, " +
+                            $"so '{gameLanguage}' text will be misread. Install the '{tag}' OCR language feature in Windows. " +
+                            $"Available recognizers: [{available}]");
+            }
+            catch (Exception ex)
+            {
+                // A malformed config code (hand-edited) must never crash startup — fall back.
+                log?.Invoke($"OCR recognizer selection for '{tag}' failed ({ex.Message}); using the profile/English recognizer");
+            }
+        }
+
+        var engine = OcrEngine.TryCreateFromUserProfileLanguages()
+            ?? OcrEngine.TryCreateFromLanguage(new Language("en-US"))
+            ?? throw new InvalidOperationException("Windows OCR is not available. Install an English OCR language pack in Windows language settings.");
+        if (tag is not null)
+            log?.Invoke($"OCR using recognizer '{engine.RecognizerLanguage.LanguageTag}' (profile default)");
+        return engine;
+    }
+
+    // Map the app's Game-language code to the BCP-47 tag Windows OCR expects, or null when no override
+    // is wanted (English uses the profile default). Mostly identity — de/fr/pt/ru pass straight through —
+    // but the app spells Spanish "sp" while Windows/BCP-47 uses "es". new Language(tag) resolves the tag
+    // to the best installed regional recognizer (e.g. "ru" → ru-RU).
+    internal static string? OcrLanguageTag(string? gameLanguage)
+    {
+        if (string.IsNullOrWhiteSpace(gameLanguage)) return null;
+        return gameLanguage.Trim().ToLowerInvariant() switch
+        {
+            "en" => null,   // English is the profile default — don't override
+            "sp" => "es",   // the app's Spanish code is "sp"; Windows uses "es"
+            var code => code,
+        };
     }
 
     // Each row starts with ~3 cost-rune glyphs on the left, then "Nx ItemName". Cropping the
