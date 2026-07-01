@@ -56,6 +56,27 @@ public class OcrScannerTests
     }
 
     [Theory]
+    // The exchange panel appends a bracketed stack count after the name; it must be stripped so the
+    // localized→English translation lookup matches exactly (#40). English cases too, for good measure.
+    [InlineData("Perfect Chaos Orb (3)", "Perfect Chaos Orb")]
+    [InlineData("Сфера отмены (3)", "Сфера отмены")]
+    // The count digit is often OCR-misread as a letter (Cyrillic "З" for 3) — still a stack marker.
+    [InlineData("Совершенная сфера хаоса (З)", "Совершенная сфера хаоса")]
+    [InlineData("Совершенная сфера усиления (З)", "Совершенная сфера усиления")]
+    [InlineData("Greater Orb of Augmentation (12)", "Greater Orb of Augmentation")]
+    // Bracket variants: OCR sometimes reads ( as [ or {.
+    [InlineData("Orb of Alchemy [3]", "Orb of Alchemy")]
+    // Only the LAST bracketed group goes — a gem's "(Level 19)" is longer/has a space, so it stays.
+    [InlineData("Uncut Skill Gem (Level 19) (1)", "Uncut Skill Gem (Level 19)")]
+    // No trailing marker → unchanged.
+    [InlineData("Perfect Chaos Orb", "Perfect Chaos Orb")]
+    [InlineData("Chaos Orb", "Chaos Orb")]
+    public void StripTrailingStackCount_RemovesBracketedMarker(string input, string expected)
+    {
+        Assert.Equal(expected, OcrScanner.StripTrailingStackCount(input));
+    }
+
+    [Theory]
     [InlineData("14x adaptive alloy", 14)]
     [InlineData("3x rune of aldur", 3)]
     [InlineData("1 mystic alloy", 1)]              // no x marker → default 1

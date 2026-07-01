@@ -40,6 +40,25 @@ public class LocaleFilesTests
         Assert.Equal("chaos orb", Load().Translate(localizedChaosOrb));
     }
 
+    // Issue #40: the OP's Russian client OCR'd clean Cyrillic names but every row MISSed because the
+    // exchange panel's trailing stack marker "(N)" — with the count digit misread as a Cyrillic "З" —
+    // survived into the name and broke the EXACT translation lookup. The full raw→strip→normalize→
+    // translate pipeline must now resolve these to their English price keys. Raw lines are verbatim
+    // from the issue's debug log.
+    [Theory]
+    [InlineData("Совершенная сфера хаоса (З)", "perfect chaos orb")]
+    [InlineData("Совершенная сфера возвышения (З)", "perfect exalted orb")]
+    [InlineData("Сфера отмены (3)", "orb of annulment")]
+    [InlineData("Совершенная сфера царей (З)", "perfect regal orb")]
+    [InlineData("Совершенная сфера превращения (З)", "perfect orb of transmutation")]
+    [InlineData("Совершенная сфера усиления (З)", "perfect orb of augmentation")]
+    public void BundledRu_ResolvesIssue40RowsThroughFullPipeline(string rawOcrLine, string expectedKey)
+    {
+        var normalized = OcrScanner.StripLeadingNoise(
+            NameNormalizer.Normalize(OcrScanner.StripTrailingStackCount(rawOcrLine)));
+        Assert.Equal(expectedKey, NameTranslator.ForLanguage("ru").Translate(normalized));
+    }
+
     // The settings dropdown is populated from the files actually present — de/fr/pt/ru/sp, never "en".
     [Fact]
     public void AvailableLocales_ListsTheSeededLanguages()

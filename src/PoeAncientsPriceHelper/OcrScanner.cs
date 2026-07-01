@@ -43,6 +43,17 @@ internal sealed class OcrScanner
     // char as "non-alpha" and strip a whole non-Latin name to "" → REJ:short (#39). Leading digits
     // and punctuation are still removed (digits are \p{N}); a leading accented Latin letter survives too.
     private static readonly Regex LeadingNonAlpha = new(@"^[^\p{L}]+", RegexOptions.Compiled);
+    // The exchange panel appends a stack-count marker in brackets after the item name
+    // ("Perfect Chaos Orb (3)"). Left on, it corrupts the name for matching: Normalize drops the
+    // brackets but keeps the bare count ("perfect chaos orb 3"), which breaks the EXACT localized→
+    // English translation lookup — a Cyrillic client then never matches its ru.json entry (#40), and
+    // the count digit is itself often OCR-misread as a letter (Cyrillic "З" for 3, so \p{L} not just
+    // \p{N}). English rows only survive today because the fuzzy matcher happens to absorb the stray
+    // token. The count is 1–3 letters/digits in brackets at the very END; a gem's earlier "(Level 19)"
+    // group is longer (and holds a space) so it never matches, leaving gem-level detection intact.
+    // Stripped from the raw line before normalization, where the brackets are still present as the
+    // reliable signal. Bracket variants ([ { are allowed since OCR sometimes reads ( as one of them.
+    private static readonly Regex TrailingStackCount = new(@"\s*[(\[{]\s*[\p{L}\p{N}]{1,3}\s*[)\]}]\s*$", RegexOptions.Compiled);
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
@@ -188,7 +199,7 @@ internal sealed class OcrScanner
             else
             {
                 centerY = GetLineCenterY(line, bitmapHeight, scale);
-                var normalizedRaw = NameNormalizer.Normalize(text);
+                var normalizedRaw = NameNormalizer.Normalize(StripTrailingStackCount(text));
                 (multiplier, multiplierExplicit) = ExtractMultiplierWithConfidence(normalizedRaw);
                 normalized = StripLeadingNoise(normalizedRaw);
                 if (normalized.Length < MinNameLength) reject = "short";
@@ -250,6 +261,12 @@ internal sealed class OcrScanner
             return (Math.Min(n, 999), true);
         return (1, false);
     }
+
+    // Remove a trailing bracketed stack-count marker ("Perfect Chaos Orb (3)" → "Perfect Chaos Orb").
+    // Runs on the RAW OCR line before normalization — the brackets are the reliable signal and are gone
+    // after Normalize. Only the last, short bracketed group goes; a gem's "(Level 19)" is left in place.
+    internal static string StripTrailingStackCount(string raw) =>
+        TrailingStackCount.Replace(raw, "").TrimEnd();
 
     // Strip leading noise: a glued stack marker ("6xarcanist…"), then short/numeric tokens ("e",
     // "l8"), then anything before the first quantity marker ("1x", "11x"), then remaining leading
