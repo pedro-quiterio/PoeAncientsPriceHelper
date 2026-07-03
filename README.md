@@ -94,6 +94,29 @@ Remove-NetFirewallRule -DisplayName "Block IPv6 - PoeAncientsPriceHelper"
 
 > Thanks to the community for diagnosing this one.
 
+### Some antivirus software flags it as malware
+
+Some antivirus engines may flag the download with reputation- or ML-based verdicts (names like
+`FileRepMalware` or a `*.ml.score` "moderate" score). **These are false positives**, and here's
+exactly why they happen:
+
+- The app is **unsigned** (no code-signing certificate — those cost money a free tool doesn't have).
+- It's a **new, self-contained build** that few people have downloaded yet, so it has no established
+  file reputation. Verdicts like these are *prevalence*-based — "this file is rare and unsigned" —
+  **not** a match against any known malware.
+- It does exactly the things heuristics are trained to be suspicious of: **captures the screen**,
+  registers **global hotkeys**, and makes **network requests** — all of which are core, documented
+  features of a price overlay.
+
+Your reassurance is that **the full source is right here in this repo** — you can read every line,
+and you can build it yourself (see [Build from source](#build-from-source)) instead of trusting the
+prebuilt download. The vast majority of engines return clean; only a handful of reputation/ML
+heuristics trip on a new, unsigned binary.
+
+If you'd like, you can help by reporting the false positive to your antivirus vendor — most have a
+"submit a false positive" form. These verdicts clear on their own as the release ages and more
+people download it.
+
 ## Build from source
 
 Requires the **.NET 10 SDK** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0))
