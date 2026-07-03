@@ -509,19 +509,31 @@ internal sealed class ScanEngine : IDisposable
             }
             else
             {
+                // OCR often misreads a name's letters as visually identical digits ("Olroth's" →
+                // "01roth's", #43). Fold those digits back to letters and use the folded form for the
+                // fallback lookups; keys hold no digits here, so the fold is safe. Skipped (lookup ==
+                // name) when the name has no digit — the common case.
+                string lookup = name.Any(char.IsDigit) ? NameNormalizer.DigitFold(name) : name;
+
                 if (snapshot.TryGetValue(name, out entry))
                 {
                     exact = true;
                 }
-                else if (name.Length >= 10 &&
-                         snapshot.Keys.Where(k => k.StartsWith(name, StringComparison.Ordinal))
+                else if (lookup != name && snapshot.TryGetValue(lookup, out entry))
+                {
+                    // Digit-folded exact hit — as trustworthy as a plain exact match.
+                    matchedKey = lookup;
+                    exact = true;
+                }
+                else if (lookup.Length >= 10 &&
+                         snapshot.Keys.Where(k => k.StartsWith(lookup, StringComparison.Ordinal))
                                       .MinBy(k => k.Length) is { } prefixKey)
                 {
                     entry = snapshot[prefixKey];
                     matchedKey = prefixKey;
                 }
-                else if (name.Length >= 6 &&
-                         BestFuzzy(snapshot, snap.KeysByLength, name) is { } fuzzy &&
+                else if (lookup.Length >= 6 &&
+                         BestFuzzy(snapshot, snap.KeysByLength, lookup) is { } fuzzy &&
                          snapshot.TryGetValue(fuzzy.Key, out entry))
                 {
                     matchedKey = fuzzy.Key;

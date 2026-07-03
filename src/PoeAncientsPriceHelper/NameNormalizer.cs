@@ -46,6 +46,27 @@ internal static class NameNormalizer
         return sb.ToString();
     }
 
+    // Map digits that Windows OCR substitutes for visually identical letters in the stylised panel
+    // font (O→0, l/I→1, S→5, B→8) back to those letters, so a name whose leading letters were read as
+    // digits still resolves — e.g. "Olroth's" read as "01roth's" (#43). Price keys carry no digits at
+    // resolution time (stack markers are stripped and gem levels pinned upstream), so folding every
+    // such digit can't corrupt a legitimate one. Input should already be Normalize()d. Used by the
+    // price resolver as a fallback for the exact + fuzzy lookups.
+    public static string DigitFold(string normalized)
+    {
+        var sb = new StringBuilder(normalized.Length);
+        foreach (char c in normalized)
+            sb.Append(c switch
+            {
+                '0' => 'o',
+                '1' => 'l',
+                '5' => 's',
+                '8' => 'b',
+                _ => c,
+            });
+        return sb.ToString();
+    }
+
     // Collapse glyphs the stylised PoE panel font / Windows OCR confuse into canonical classes
     // (n/m/u→n, r/v→r, …), so a systematically garbled read still lines up with the true text. Used by
     // the rumour matcher (name → key) and the panel detector (excluding garbled boilerplate). Input

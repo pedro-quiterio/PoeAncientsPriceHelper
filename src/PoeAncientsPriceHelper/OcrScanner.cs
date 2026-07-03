@@ -33,16 +33,24 @@ internal sealed class OcrScanner
     // so the marker is allowed to be followed by a letter — only a trailing DIGIT is rejected (that
     // would be an ambiguous "6x5", not a stack marker).
     private static readonly Regex MultiplierPattern = new(@"(?<![a-z0-9])(\d{1,3})\s*x(?![0-9])", RegexOptions.Compiled);
-    private static readonly Regex LeadingNoise = new(@"^(?:\S{1,2}\s+|\S*\d\S*\s+)+", RegexOptions.Compiled);
+    // Leading noise = short (1–2 char) tokens and digit-bearing junk tokens ("l8", "l38", cost-rune
+    // glyph misreads). The digit alternative is guarded by (?!\S*\p{L}{3}) so it does NOT eat a real
+    // first word whose letters OCR misread as digits ("Olroth's" → "01roth's"): such a token still
+    // holds a 3+ letter run ("roth"), so it is kept and left for the digit-fold resolver (#43). Pure
+    // junk ("l8", "l38") has no letter run and is still stripped.
+    private static readonly Regex LeadingNoise = new(@"^(?:\S{1,2}\s+|(?!\S*\p{L}{3})\S*\d\S*\s+)+", RegexOptions.Compiled);
     private static readonly Regex QuantityMarker = new(@"(?<!\w)\d+\s*x\s+", RegexOptions.Compiled);
     // A stack marker at the very start, possibly glued to the name ("6xarcanist s etcher"). Stripped
     // BEFORE LeadingNoise, whose digit-token rule would otherwise swallow "6xarcanist" whole and
     // destroy the item name. Mirrors MultiplierPattern's "letter ok, trailing digit not" boundary.
     private static readonly Regex LeadingQuantity = new(@"^\s*\d{1,3}\s*x(?![0-9])", RegexOptions.Compiled);
     // \p{L} (any-script letter), not [a-z]: an ASCII-only class would treat every Cyrillic/Greek
-    // char as "non-alpha" and strip a whole non-Latin name to "" → REJ:short (#39). Leading digits
-    // and punctuation are still removed (digits are \p{N}); a leading accented Latin letter survives too.
-    private static readonly Regex LeadingNonAlpha = new(@"^[^\p{L}]+", RegexOptions.Compiled);
+    // char as "non-alpha" and strip a whole non-Latin name to "" → REJ:short (#39). Leading
+    // punctuation is removed; a leading accented Latin letter survives too. Digits are KEPT (\p{N} is
+    // excluded): by this point LeadingNoise has already dropped any standalone leading digit token, so
+    // a digit that survives here is glued to a real first word whose letters OCR read as digits
+    // ("01roth's"), which the digit-fold resolver recovers (#43) — stripping it would delete the word.
+    private static readonly Regex LeadingNonAlpha = new(@"^[^\p{L}\p{N}]+", RegexOptions.Compiled);
     // The exchange panel appends a stack-count marker in brackets after the item name
     // ("Perfect Chaos Orb (3)"). Left on, it corrupts the name for matching: Normalize drops the
     // brackets but keeps the bare count ("perfect chaos orb 3"), which breaks the EXACT localized→

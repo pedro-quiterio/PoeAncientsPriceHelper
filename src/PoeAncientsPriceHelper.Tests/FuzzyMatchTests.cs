@@ -29,6 +29,18 @@ public class FuzzyMatchTests
         Assert.Equal(shouldMatch, score > 0.84);
     }
 
+    // Digits OCR substituted for letters (O→0, l→1, S→5, B→8) fold back so the name matches its key.
+    [Theory]
+    [InlineData("01roth s saga", "olroth s saga")]                       // O→0, l→1
+    [InlineData("01roth s crest of the sun", "olroth s crest of the sun")]
+    [InlineData("5igil of power", "sigil of power")]                     // S→5
+    [InlineData("8reach ring", "breach ring")]                          // B→8
+    [InlineData("no digits at all", "no digits at all")]                 // unchanged when clean
+    public void DigitFold_RecoversLettersMisreadAsDigits(string ocr, string expected)
+    {
+        Assert.Equal(expected, NameNormalizer.DigitFold(ocr));
+    }
+
     // Uncut gems are pinned by type + level (no fuzzy), so the canonical key must carry both exactly.
     [Theory]
     [InlineData("uncut spirit gem level 19", "uncut spirit gem level 19")]

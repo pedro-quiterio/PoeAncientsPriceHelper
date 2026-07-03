@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.6] — 2026-07-03
+
+### Fixed
+
+- **Items whose name OCR misread as digits now resolve.** Names starting with letters that Windows OCR
+  reads as look-alike digits — e.g. **Olroth's** read as *01roth's* (`O`→`0`, `l`→`1`) — no longer come
+  back priceless. The leading-noise cleanup was deleting the whole misread first word, and nothing on
+  the price-lookup path undid the digit-for-letter swap. The first word is now preserved and a
+  digit-fold (`0→o, 1→l, 5→s, 8→b`) recovers the exact name before matching. (#43)
+
 ## [3.2.0] — 2026-06-27
 
 ### Added

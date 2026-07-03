@@ -36,6 +36,12 @@ public class OcrScannerTests
     [InlineData("e l8 n 1x the greatwolf s rune of willpower", "the greatwolf s rune of willpower")]
     [InlineData("oa a 1x greater orb of transmutation", "greater orb of transmutation")]
     [InlineData("b l38 unique quarterstaff", "unique quarterstaff")]
+    // A real first word whose letters OCR read as digits ("Olroth's" → "01roth's") keeps a 3+ letter
+    // run, so it must NOT be stripped as leading junk — the digit-fold resolver recovers it (#43).
+    [InlineData("01roth s saga", "01roth s saga")]
+    [InlineData("01roth s crest of the sun", "01roth s crest of the sun")]
+    // Pure junk with a digit but no letter run is still stripped, even ahead of a kept digit-word.
+    [InlineData("l8 01roth s saga", "01roth s saga")]
     [InlineData("krogin 1x ancient rune of decay", "ancient rune of decay")]
     [InlineData("hefod 1x ancient rune of the titan", "ancient rune of the titan")]
     [InlineData("nerog 11x ancient rune of discovery", "ancient rune of discovery")]
