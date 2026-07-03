@@ -28,7 +28,10 @@ public partial class MainWindow : Window
     {
         AutomaticDecompression = System.Net.DecompressionMethods.All,
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        MaxConnectionsPerServer = 4
+        MaxConnectionsPerServer = 4,
+        // Happy Eyeballs (#16): race IPv4/IPv6 connects so a dead IPv6 path (Starlink/CGNAT) falls
+        // back to IPv4 in a fraction of a second instead of stalling out the 15s timeout below.
+        ConnectCallback = static (context, ct) => HappyEyeballs.ConnectAsync(context.DnsEndPoint, ct)
     })
     {
         Timeout = TimeSpan.FromSeconds(15),

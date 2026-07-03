@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.7] — 2026-07-03
+
+### Fixed
+
+- **Prices now load on connections with broken IPv6 (Starlink/CGNAT).** `poe.ninja`/`poecdn`
+  publish both IPv6 and IPv4 addresses; on connections where the IPv6 path is a black hole, the app
+  used to stall on the dead route until the 15s timeout fired and the whole fetch cycle failed. Network
+  connections now use a Happy Eyeballs (RFC 8305) racing connect that falls back to IPv4 in a fraction
+  of a second — no firewall rule needed. Healthy connections are unaffected. (#16)
+
 ## [3.5.6] — 2026-07-03
 
 ### Fixed

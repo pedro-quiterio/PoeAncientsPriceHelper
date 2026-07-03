@@ -58,6 +58,42 @@ The app updates itself straight from this repo's GitHub Releases — there's no 
 
 Updating is powered by [Velopack](https://velopack.io/) (see [Acknowledgements](#acknowledgements)).
 
+## Troubleshooting
+
+### Prices won't load / poe.ninja fetches keep failing
+
+On some connections (Starlink and other CGNAT setups are the usual culprits) the IPv6 network path
+is broken even though IPv4 works fine. Since `poe.ninja` resolves to both IPv6 and IPv4 addresses,
+the app can end up trying the dead IPv6 route and stalling until each request times out — so prices
+never appear.
+
+**As of v3.5.7 this is handled automatically** — the app races the IPv4 and IPv6 routes and uses
+whichever connects first, so a dead IPv6 path falls back to IPv4 on its own. Just update and it
+should work; no firewall rule needed.
+
+If you're on an older version and can't update, you can force the app onto IPv4 by blocking its
+outbound IPv6 traffic with a firewall rule. Open **Windows PowerShell as Administrator** and run:
+
+```powershell
+New-NetFirewallRule -DisplayName "Block IPv6 - PoeAncientsPriceHelper" `
+  -Direction Outbound `
+  -Program "C:\Users\<YOUR-USERNAME>\AppData\Local\PoeAncientsPriceHelper\current\PoeAncientsPriceHelper.exe" `
+  -RemoteAddress "::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" `
+  -Protocol TCP `
+  -Action Block
+```
+
+Replace `<YOUR-USERNAME>` with your Windows username (the path above is the default install
+location). Restart the app and prices should load over IPv4.
+
+To undo it later:
+
+```powershell
+Remove-NetFirewallRule -DisplayName "Block IPv6 - PoeAncientsPriceHelper"
+```
+
+> Thanks to the community for diagnosing this one.
+
 ## Build from source
 
 Requires the **.NET 10 SDK** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0))
