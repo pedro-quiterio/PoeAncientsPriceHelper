@@ -16,6 +16,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the price-lookup path undid the digit-for-letter swap. The first word is now preserved and a
   digit-fold (`0→o, 1→l, 5→s, 8→b`) recovers the exact name before matching. (#43)
 
+## [3.5.5] — 2026-07-03
+
+### Fixed
+
+- **More localized item names now resolve.** Completed the French locale and filled gaps in the German,
+  Russian, and Spanish maps, so items that previously came back unpriced on those clients are matched.
+
+## [3.5.4] — 2026-07-03
+
+### Fixed
+
+- **Corrected wrong and wrong-language localized names.** Several entries across the Russian, German,
+  Spanish, and French maps were mistranslated or contaminated with another language's text (e.g. a
+  German map holding Spanish words), so those items didn't price on the affected client. Applied
+  community corrections and translated the remaining Liquid Verisium fallback. (#42)
+
+## [3.5.3] — 2026-07-01
+
+### Fixed
+
+- **Non-English clients are now read in their own script.** The OCR recognizer is chosen from the
+  Settings → Game language you pick, not the Windows profile language. A Russian client on English
+  Windows was being read with the Latin recognizer — every Cyrillic name came back transliterated and
+  never matched. If the matching OCR language pack isn't installed, the app falls back and logs which
+  one to add. (#41)
+
+## [3.5.2] — 2026-07-01
+
+### Fixed
+
+- **The trailing stack-count marker no longer breaks matching.** The exchange panel appends a count
+  after the name (`Perfect Chaos Orb (3)`); left on, it corrupted the name lookup — most visibly on
+  localized clients, where it defeated the exact translation match. It's now stripped before matching. (#40)
+
+## [3.5.1] — 2026-06-29
+
+### Fixed
+
+- **Non-Latin names survive the leading-noise cleanup.** The routine that strips leading OCR junk was
+  ASCII-only, so it erased whole Cyrillic (and other non-Latin) names to nothing and the row was
+  dropped as too short. It's now letter-class aware and keeps them. (#39)
+
+## [3.5.0] — 2026-06-28
+
+### Fixed
+
+- **Stack markers glued to the item name are now parsed.** When OCR drops the space in `6xArcanist's
+  Etcher`, the quantity is read correctly and the name is no longer mangled.
+
+## [3.4.0] — 2026-06-28
+
+### Added
+
+- **Localized (non-English) client support.** Non-English PoE 2 clients show item names in their own
+  language (e.g. German *Chaossphäre*), which never matched poe.ninja's English price keys, so every
+  row came back unpriced. A new **Settings → Game language** dropdown (English by default) turns on a
+  translation layer that maps the localized name back to English — matching exactly, then with accents
+  folded so a dropped diacritic still resolves — before pricing. German, French, Portuguese, Russian,
+  and Spanish maps ship seeded from verified in-game names, and you can extend or override them under
+  `%LocalAppData%\PoeAncientsPriceHelper\locales\` (see `docs/adding-a-language.md`). Known gap: uncut
+  gems, priced per level, aren't translated yet. (#29)
+
+## [3.3.0] — 2026-06-27
+
+### Added
+
+- **Island Rumour helper (experimental).** An optional overlay for the Atlas that OCRs the *Island
+  Rumours* panel and shows each rumour's map type, mods, and a community rating in labelled columns,
+  displaying the matched name rather than the raw OCR text. It auto-detects the panel while in the
+  world, and its confusion-aware matching (down to a skeleton tier for badly garbled reads) copes with
+  the stylised font. Ratings come from the community *Expedition Cheatsheet* spreadsheet, which the app
+  refreshes on its own (falling back to the bundled copy) — the sheet is linked from Settings and
+  credited on the Credits screen. Turn it on, with its own scan-rate, in Settings. (#33–#37)
+
+### Fixed
+
+- **Stack multiplier no longer bleeds between same-item rows.** A stack size read on one row could carry
+  over to another row of the same item, showing the wrong total.
+
+## [3.2.1] — 2026-06-27
+
+### Changed
+
+- **Settings button moved next to the donate button**, now with an icon and label, tidying the main
+  window's bottom bar.
+
 ## [3.2.0] — 2026-06-27
 
 ### Added
