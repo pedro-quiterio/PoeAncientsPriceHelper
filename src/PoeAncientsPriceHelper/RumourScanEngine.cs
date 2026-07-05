@@ -83,11 +83,26 @@ internal sealed class RumourScanEngine : IDisposable
                 var now = DateTime.UtcNow;
                 var screen = _screen();
 
+                // Locate the game window: gate the WORLD check to its viewport (windowed mode parks the
+                // panel anywhere on the monitor, #45), and pause entirely while the game isn't in front.
+                // Fail-open — no game window found ⇒ monitor-relative gate and keep scanning, as before.
+                bool poeFound = GameWindow.TryGet(out var game);
+                if (poeFound && !game.IsForeground)
+                {
+                    // Alt-tabbed / minimised: drop the overlay and idle until the game is back in front.
+                    HideOverlay();
+                    onMap = false;
+                    missStreak = 0;
+                    try { await Task.Delay(TickMs, ct); } catch (OperationCanceledException) { break; }
+                    continue;
+                }
+                var gateArea = poeFound ? game.ClientBounds : screen;
+
                 // Cheap WORLD gate (~1 Hz). Off the map this is the only work the loop does.
                 if ((now - lastGate).TotalMilliseconds >= GateIntervalMs)
                 {
                     lastGate = now;
-                    var gateLines = _scanner.CaptureLines(WorldGateRegion(screen));
+                    var gateLines = _scanner.CaptureLines(WorldGateRegion(gateArea));
                     bool nowOnMap = ContainsWorldToken(gateLines);
                     if (!nowOnMap && onMap)
                     {
@@ -147,15 +162,18 @@ internal sealed class RumourScanEngine : IDisposable
         if (_showing) { RumourOverlayManager.HideNow(); _showing = false; }
     }
 
-    // The small top-centre band where the Atlas shows the "WORLD" label. A fifth of the width and a
-    // fifteenth of the height, centred horizontally at the very top — big enough to catch the label
-    // across resolutions / UI scales, small enough that OCR'ing it ~1 Hz is negligible.
-    public static Rectangle WorldGateRegion(Rectangle screen)
+    // The small top-centre band where the Atlas shows the "WORLD" label, relative to the passed area —
+    // the game's client viewport when it can be located, else the monitor (#45). A fifth of the width
+    // and a fifteenth of the height, centred horizontally at the very top — big enough to catch the
+    // label across resolutions / UI scales, small enough that OCR'ing it ~1 Hz is negligible. Using the
+    // viewport (not the monitor) keeps the band over the label when a windowed client sits offset from
+    // the monitor's top-left.
+    public static Rectangle WorldGateRegion(Rectangle area)
     {
-        int w = Math.Max(1, screen.Width / 5);
-        int h = Math.Max(1, screen.Height / 15);
-        int x = screen.Left + (screen.Width - w) / 2;
-        return new Rectangle(x, screen.Top, w, h);
+        int w = Math.Max(1, area.Width / 5);
+        int h = Math.Max(1, area.Height / 15);
+        int x = area.Left + (area.Width - w) / 2;
+        return new Rectangle(x, area.Top, w, h);
     }
 
     // True if a gate line contains "world" as a whole word (so "underworld" etc. can't trip it).

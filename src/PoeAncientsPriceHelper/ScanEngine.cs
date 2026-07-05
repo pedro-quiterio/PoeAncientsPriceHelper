@@ -131,6 +131,7 @@ internal sealed class ScanEngine : IDisposable
         int noPriceStreak = 0;
         const int NoPriceCloseLimit = 3;   // ~450ms at the OCR floor before a confirmed panel is dropped
         int cycleCount = 0;
+        bool paused = false;          // true while the game isn't the foreground window (no capture/OCR)
         var lastOcrAt = DateTime.MinValue;
         const int MinOcrIntervalMs = 150;            // OCR floor while panel is open — Windows OCR is fast enough that 6.7/s gives sub-200ms turnaround
         const int OpenCycleMs = 120;                 // tight loop while scanning
@@ -153,6 +154,28 @@ internal sealed class ScanEngine : IDisposable
             cycleCount++;
             try
             {
+                // Pause while the game isn't the foreground window (alt-tabbed / minimised): no capture,
+                // no OCR, overlay hidden. Fail-open — when the game window can't be located we scan
+                // exactly as before, so a detection miss can never silently stop pricing.
+                if (GameWindow.TryGet(out var game) && !game.IsForeground)
+                {
+                    if (!paused)
+                    {
+                        paused = true;
+                        // Reset transient detection state so the panel re-confirms cleanly on return.
+                        slots.Clear(); lastRows = [];
+                        isOpen = false; confirmedOpen = false;
+                        brightStreak = 0; darkStreak = 0; staleCount = 0; noPriceStreak = 0;
+                        lastPushedRows = []; lastPushedConfirmed = false; lastPushedReading = false;
+                        _showing = false;
+                        PriceOverlayManager.HideNow();
+                        Log("paused (game not foreground)");
+                    }
+                    try { await Task.Delay(ClosedCycleMs, ct); } catch (OperationCanceledException) { break; }
+                    continue;
+                }
+                if (paused) { paused = false; Log("resumed (game foreground)"); }
+
                 using var bmp = _capture.CaptureRegion(_config.RegionRect);
                 var sampledPixel = detector.SampleAverage(bmp);
                 int brightness = (sampledPixel.R + sampledPixel.G + sampledPixel.B) / 3;

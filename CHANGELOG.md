@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.8] — 2026-07-05
+
+### Fixed
+
+- **Rumour scanning now works in windowed mode.** The "are we on the Atlas?" pre-check looked for the
+  **WORLD** label in the top-centre strip of the *monitor*. A windowed client sitting lower than that
+  strip (e.g. a custom 1904×816 window on a larger desktop) pushed the label out of the band, so the
+  check never fired and the rumour overlay never appeared. The gate is now measured relative to the
+  game's own viewport, so it catches the label regardless of where the window sits. Fullscreen and
+  borderless are unaffected. (#45)
+
+### Changed
+
+- **OCR pauses while the game isn't in front.** Both the price and rumour scanners now stop capturing
+  and OCRing — and hide their overlays — whenever Path of Exile is alt-tabbed or minimised, resuming
+  the moment it's back in focus. This cuts idle CPU/GPU use and stops the overlays from floating over
+  other apps. If the game window can't be located the app scans exactly as before.
+
 ## [3.5.7] — 2026-07-03
 
 ### Fixed

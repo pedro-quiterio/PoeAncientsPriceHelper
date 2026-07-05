@@ -19,6 +19,20 @@ public class RumourScanEngineTests
     }
 
     [Fact]
+    public void WorldGateRegion_FollowsAnOffsetWindowedViewport()
+    {
+        // #45: a windowed client parked below/right of the monitor's top-left. The band must sit at the
+        // TOP-CENTRE OF THE VIEWPORT (where the WORLD label renders), not the monitor's top edge —
+        // otherwise the label falls outside the gate and the scan never triggers.
+        var viewport = new Rectangle(64, 240, 1904, 816);
+        var gate = RumourScanEngine.WorldGateRegion(viewport);
+
+        Assert.Equal(viewport.Top, gate.Top);        // pinned to the viewport top, not the monitor top
+        Assert.Equal(viewport.Left + viewport.Width / 2, gate.Left + gate.Width / 2);   // centred on the viewport
+        Assert.True(gate.Left >= viewport.Left && gate.Right <= viewport.Right);
+    }
+
+    [Fact]
     public void WorldGateRegion_RespectsAMonitorOrigin()
     {
         // A monitor to the left of the primary (negative origin).
