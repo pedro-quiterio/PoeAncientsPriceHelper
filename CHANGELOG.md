@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.10] — 2026-07-06
+
+### Fixed
+
+- **Settings window no longer cuts off the bottom options.** The new "Auto-detect the Atlas map" /
+  "Set WORLD region…" controls (3.5.9) fell below the fixed-height Settings window, so they were
+  invisible and unreachable. The window is now taller and its contents scroll if they don't fit, so
+  every option is always accessible. (#45)
+
 ## [3.5.9] — 2026-07-06
 
 ### Fixed
