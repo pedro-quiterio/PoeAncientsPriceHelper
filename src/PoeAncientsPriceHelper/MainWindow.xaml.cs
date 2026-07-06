@@ -253,6 +253,24 @@ public partial class MainWindow : Window
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         new SettingsWindow(_config, RefreshRumourDataAsync) { Owner = this }.ShowDialog();
 
+    // Opens the bundled HTML guide (docs\README.html, shipped next to the exe) in the default browser.
+    // Falls back to the online README if the local copy is somehow missing.
+    private void HelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        var local = System.IO.Path.Combine(AppContext.BaseDirectory, "docs", "README.html");
+        var target = System.IO.File.Exists(local)
+            ? local
+            : "https://github.com/pedro-quiterio/PoeAncientsPriceHelper#readme";
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Help] failed to open guide: {ex.Message}");
+        }
+    }
+
     // "Refresh from sheet" (#37): pull the latest rumour CSV, cache it, and swap it into the running
     // scanner so it applies live. On failure the existing data is kept; the result message is shown in
     // Settings.

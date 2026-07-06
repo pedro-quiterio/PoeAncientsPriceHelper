@@ -132,6 +132,12 @@
         <StackPanel Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
                     Orientation="Horizontal">
+            <Button x:Name="HelpButton" Style="{StaticResource FlatButton}"
+                    Content="❔ Help" FontSize="11"
+                    Padding="10,4" Margin="0,0,8,0"
+                    Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                    ToolTip="Open the guide — how to use the app, calibration, rumours, reporting bugs"
+                    Click="HelpButton_Click"/>
             <Button x:Name="SettingsButton" Style="{StaticResource FlatButton}"
                     Content="⚙ Settings" FontSize="11"
                     Padding="10,4" Margin="0,0,8,0"

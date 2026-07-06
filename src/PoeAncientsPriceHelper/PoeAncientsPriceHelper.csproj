@@ -50,6 +50,14 @@
     </Content>
   </ItemGroup>
 
+  <!-- In-app HTML guide (opened by the Help button) + its images, shipped next to the exe under docs\.
+       MainWindow.HelpButton_Click opens docs\README.html from AppContext.BaseDirectory. -->
+  <ItemGroup>
+    <Content Include="docs\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- Demote App.xaml from ApplicationDefinition (which would generate its own Main) to a Page, so
        Program.Main is the single entry point. App.InitializeComponent() still applies StartupUri /
        ShutdownMode / resources exactly as before. -->

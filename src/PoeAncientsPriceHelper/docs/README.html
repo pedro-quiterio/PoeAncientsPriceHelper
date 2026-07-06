@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poe Ancients Price Helper — Guide</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px;
+    background: #0F0F0F; color: #E0E0E0;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 4px; color: #fff; }
+  h2 {
+    font-size: 20px; margin: 38px 0 10px; color: #fff;
+    border-bottom: 1px solid #2A2A2A; padding-bottom: 6px;
+  }
+  .tagline { color: #999; margin: 0 0 8px; font-size: 15px; }
+  a { color: #66B3FF; }
+  code, kbd {
+    background: #1C1C1C; border: 1px solid #2A2A2A; border-radius: 4px;
+    padding: 1px 6px; font-family: Consolas, monospace; font-size: 13px;
+  }
+  kbd { color: #66FF66; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  figure { margin: 16px 0; }
+  figure img {
+    max-width: 100%; border: 1px solid #2A2A2A; border-radius: 6px; display: block;
+  }
+  figcaption { color: #888; font-size: 13px; margin-top: 6px; }
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #2A2A2A; }
+  th { color: #999; font-weight: 600; font-size: 13px; }
+  .start { color: #66FF66; font-weight: 600; }
+  .note {
+    background: #14140C; border: 1px solid #3A3A1A; border-radius: 6px;
+    padding: 12px 16px; margin: 14px 0; font-size: 14px;
+  }
+  .footer {
+    margin-top: 46px; padding-top: 16px; border-top: 1px solid #2A2A2A;
+    color: #888; font-size: 14px;
+  }
+  .coffee { color: #E0B060; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Poe Ancients Price Helper</h1>
+  <p class="tagline">A screen overlay for Path of Exile 2 that reads your currency-exchange list and shows live poe.ninja prices right next to each item.</p>
+
+  <h2>What it does</h2>
+  <p>Open a currency / reward list panel in game, and the tool reads the item names on screen and draws the current market price next to each one — so you never have to alt-tab to poe.ninja to know what a stack is worth.</p>
+
+  <h2>Getting started</h2>
+  <ol>
+    <li>Run <strong>PoeAncientsPriceHelper-win-Setup.exe</strong> from the <a href="https://github.com/pedro-quiterio/PoeAncientsPriceHelper/releases">Releases</a> page. It installs per-user (no admin, no .NET required) and keeps itself up to date after that.</li>
+    <li>The first time, Windows SmartScreen may say <em>“Windows protected your PC”</em> because the app isn’t code-signed. Click <strong>More info → Run anyway</strong>. The first launch also downloads a few currency icons, so give it a second.</li>
+  </ol>
+
+  <h2>Choose your league</h2>
+  <p>Use the <strong>League</strong> dropdown at the top of the window to match the league you’re playing. It includes both the standard (softcore) league and its <strong>Hardcore</strong> variant — e.g. <code>Runes of Aldur</code> and <code>HC Runes of Aldur</code>. Pick the right one so prices come from the matching poe.ninja economy. Switching re-fetches prices automatically, and your choice is remembered next time.</p>
+  <div class="note">Hardcore and softcore are priced in different currencies (softcore in Divine Orbs, hardcore in Exalted Orbs). The overlay handles this for you and shows the correct currency icon per item — just make sure the dropdown matches your league.</div>
+
+  <h2>Step 1 — Calibrate the panel</h2>
+  <p><strong>Calibration tells the app <em>where</em> on your screen the in-game list appears.</strong> You only need to do this once (and again if you change resolution or move the panel).</p>
+  <ol>
+    <li>Click <strong>Calibrate Region</strong> in the app (or press <kbd>F4</kbd> any time).</li>
+    <li>Your screen dims. <strong>Drag a box</strong> around the in-game item list panel.</li>
+    <li>Press <kbd>ENTER</kbd> to confirm (or <kbd>ESC</kbd> to cancel and try again).</li>
+  </ol>
+  <figure>
+    <img src="calibrate.png" alt="Dragging a box around the in-game item list during calibration">
+    <figcaption>Drag a box around the list panel, then press ENTER to confirm.</figcaption>
+  </figure>
+
+  <h2>Step 2 — See prices</h2>
+  <p>Click <span class="start">Start</span>, then open a list panel in game. Prices appear to the right of each row. For stacks, the line shows the <strong>total</strong> followed by the per-item price, e.g. <code>2 (0.5 each)</code>.</p>
+  <figure>
+    <img src="pricing.png" alt="The overlay showing prices next to each item in the list">
+    <figcaption>Prices are drawn next to each item as you hover the panel.</figcaption>
+  </figure>
+
+  <h2>Uncut gems</h2>
+  <p>Uncut <strong>skill</strong>, <strong>spirit</strong> and <strong>support</strong> gems are now priced too. Because a gem’s value depends on its <strong>level</strong>, the tool matches the <em>exact</em> gem type and level shown on the item — an <code>Uncut Spirit Gem (Level 19)</code> is priced as a level-19 spirit gem, not a level-18 one.</p>
+  <div class="note">If a gem’s type or level can’t be read cleanly for a moment (a blurry frame, or the panel still sliding into view), that row briefly shows <code>?</code> instead of a price — it fills in as soon as it gets a clean read. This is on purpose: neighbouring gem levels can differ several-fold in value, so the tool would rather show nothing than a confidently-wrong price.</div>
+
+  <h2>Island Rumours (Atlas overlay)</h2>
+  <p>With the <strong>Island Rumour helper</strong> enabled (in <strong>Settings</strong>), the app watches the Atlas and, when you open an <em>Uncharted Waters / Island Rumours</em> panel, shows each rumour’s map, mods and rating beside it — read from a community-maintained spreadsheet.</p>
+  <p>To know when you’re on the Atlas, it looks for the <strong>“WORLD”</strong> label at the top-centre of the map. This is found <strong>automatically</strong> by default. If you play in <strong>windowed</strong> mode or a <strong>custom resolution</strong> and the rumour overlay never appears, you can point the app at the label yourself:</p>
+  <ol>
+    <li>Open <strong>Settings</strong> and <strong>untick “Auto-detect the Atlas map”</strong>.</li>
+    <li>Open the <strong>Atlas</strong> in game so the <strong>WORLD</strong> label is visible.</li>
+    <li>Click <strong>“Set WORLD region…”</strong>, then <strong>drag a box around the “WORLD” text</strong> at the top-centre of the map and press <kbd>ENTER</kbd>.</li>
+  </ol>
+  <figure>
+    <img src="world-region.png" alt="The WORLD label at the top-centre of the Atlas map, above the ACT tabs">
+    <figcaption>Select the <strong>WORLD</strong> label at the <strong>top-centre of the Atlas map</strong> (just above the ACT tabs).</figcaption>
+  </figure>
+  <div class="note">You only need this if auto-detect can’t read the label on your setup. The region is stored in fixed screen coordinates, so re-set it (or switch auto-detect back on) if you move the game window or change resolution.</div>
+
+  <h2>Update notifications</h2>
+  <p>When the app starts it quietly checks GitHub for a newer release. If one is available, a red <strong>“Update available”</strong> link appears at the bottom of the window — click it to open the download page. If you’re offline or already up to date, nothing happens and no link is shown.</p>
+
+  <h2>Hotkeys</h2>
+  <table>
+    <tr><th>Key</th><th>Action</th></tr>
+    <tr><td><kbd>F4</kbd></td><td>Recalibrate the panel region</td></tr>
+    <tr><td><kbd>F5</kbd> <em>(default)</em></td><td>Start / stop scanning — <strong>rebindable</strong> (see below)</td></tr>
+    <tr><td><kbd>F3</kbd></td><td>Toggle debug boxes (shows the scanned region + per-row boxes)</td></tr>
+    <tr><td><kbd>ESC</kbd></td><td>Hide the overlay (also fires when you close the panel)</td></tr>
+    <tr><td><kbd>Ctrl</kbd> + Click</td><td>Hide the overlay (the in-game “purchase” gesture)</td></tr>
+  </table>
+  <p>To use a different Start/Stop key, click <strong>Rebind</strong> next to <em>Start/Stop key</em> in the app, then press the key you want — it’s saved and takes effect immediately. <kbd>F3</kbd>, <kbd>F4</kbd>, <kbd>ESC</kbd> and <kbd>Ctrl</kbd> are reserved (they’re used for the actions above); press <kbd>ESC</kbd> to cancel.</p>
+  <div class="note">Tip: an <strong>F-key</strong> (or another key you don’t press while typing) makes the best Start/Stop hotkey — it works globally even while the game is focused, so a normal letter would also trigger it while chatting or browsing.</div>
+
+  <h2>Tips &amp; troubleshooting</h2>
+  <ul>
+    <li><strong>Prices look slightly off?</strong> Market prices come from <a href="https://poe.ninja/poe2">poe.ninja</a>. The app fetches them when it starts (and when you switch league), then <strong>auto-refreshes every 30 minutes</strong> in the background. The on-screen overlay itself updates live (a few times per second) as you open panels — so what you see reflects the latest 30-minute fetch.</li>
+    <li><strong>Overlay misaligned?</strong> Press <kbd>F4</kbd> and recalibrate — this usually happens after a resolution or UI-scale change.</li>
+    <li><strong>Nothing shows up?</strong> Make sure you clicked <span class="start">Start</span> and that the calibrated box actually covers the list panel. <kbd>F3</kbd> shows the scanned region so you can check.</li>
+    <li><strong>Antivirus warning?</strong> The app uses a global-hotkey library (<code>uiohook.dll</code>) so <kbd>F3</kbd>/<kbd>ESC</kbd>/<kbd>Ctrl</kbd>+Click work while the game has focus. Some AV flags this generically; it’s required for the hotkeys.</li>
+    <li><strong>Something’s broken?</strong> Double-click <code>debug.cmd</code> (see below) to run with diagnostics, then send the log.</li>
+  </ul>
+
+  <h2>Report a bug</h2>
+  <p>Found something wrong, or have a request? Please open an issue on GitHub:</p>
+  <p><a href="https://github.com/pedro-quiterio/PoeAncientsPriceHelper/issues"><strong>github.com/pedro-quiterio/PoeAncientsPriceHelper/issues</strong></a></p>
+  <p>To make a bug easy to fix, include a <strong>diagnostics log</strong>:</p>
+  <ol>
+    <li>Click the <strong>Diagnostics</strong> link at the bottom of the app window — it restarts the app with logging on (a console window opens alongside it).</li>
+    <li>Reproduce the problem (calibrate, open the panel, open the Atlas, press <kbd>F3</kbd>, etc.).</li>
+    <li>Close the app, then click <strong>Diagnostics</strong> again (now labelled <em>Open logs</em>) to open your data folder.</li>
+    <li>Attach <code>scan_log.txt</code> (prices) and/or <code>rumour_scan.txt</code> (rumours), plus a screenshot of what you saw, to your GitHub issue.</li>
+  </ol>
+  <div class="note">Debug mode is the same app with extra logging — it’s safe to use normally.</div>
+
+  <div class="footer">
+    Made by pedro. If this tool saves you some alt-tabbing and you’d like to say thanks,
+    there’s a <span class="coffee">☕ Buy me a coffee</span> button right in the app. Cheers!
+  </div>
+
+</div>
+</body>
+</html>
