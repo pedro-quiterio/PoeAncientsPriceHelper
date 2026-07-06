@@ -21,9 +21,14 @@ internal sealed class CalibrationOverlay : Form
     private Rectangle _currentDragScreen;   // absolute physical screen coords
     private Rectangle _confirmedRectScreen; // absolute physical screen coords
     private readonly Bitmap _screenSnapshot;
+    private readonly string _instruction;
 
-    public CalibrationOverlay()
+    private const string DefaultInstruction =
+        "Drag a box around the item list panel, then press ENTER to confirm. ESC to cancel.";
+
+    public CalibrationOverlay(string? instruction = null)
     {
+        _instruction = instruction ?? DefaultInstruction;
         FormBorderStyle = FormBorderStyle.None;
         TopMost = true;
         ShowInTaskbar = false;
@@ -148,8 +153,7 @@ internal sealed class CalibrationOverlay : Form
         // secondary). The selection rects are stored in physical coords, so convert them for drawing.
         var primary = Screen.PrimaryScreen!.Bounds;
         var titleAt = PointToClient(new Point(primary.Left + 30, primary.Top + 30));
-        g.DrawString("Drag a box around the item list panel, then press ENTER to confirm. ESC to cancel.",
-            titleFont, fg, titleAt.X, titleAt.Y);
+        g.DrawString(_instruction, titleFont, fg, titleAt.X, titleAt.Y);
 
         if (_currentDragScreen.Width > 0)
         {
@@ -166,7 +170,7 @@ internal sealed class CalibrationOverlay : Form
         }
     }
 
-    public static Rectangle? RunOnStaThread()
+    public static Rectangle? RunOnStaThread(string? instruction = null)
     {
         Rectangle? result = null;
         var thread = new Thread(() =>
@@ -174,7 +178,7 @@ internal sealed class CalibrationOverlay : Form
             // DPI awareness is set process-wide via app.manifest (Per-Monitor-V2). The old
             // Application.SetHighDpiMode(PerMonitorV2) call here was a no-op — the WPF process had
             // already locked its DPI mode by the time calibration runs.
-            using var form = new CalibrationOverlay();
+            using var form = new CalibrationOverlay(instruction);
             if (form.ShowDialog() == DialogResult.OK)
                 result = form.RegionRectResult;
         });

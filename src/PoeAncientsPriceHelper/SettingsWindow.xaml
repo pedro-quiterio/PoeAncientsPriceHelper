@@ -153,6 +153,18 @@
                     FontSize="11" HorizontalAlignment="Left" Padding="10,4" Margin="0,6,0,0" Click="RumourSourceButton_Click"/>
             <TextBlock x:Name="RumourRefreshStatus" Text="" Foreground="#888" FontSize="10"
                        Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+            <Border Height="1" Background="#2A2A2A" Margin="0,12,0,10"/>
+            <CheckBox x:Name="RumourAutoWorldBox" Foreground="#CCC" FontSize="12"
+                      Content="Auto-detect the Atlas map (recommended)"
+                      Checked="RumourAutoWorldBox_Changed" Unchecked="RumourAutoWorldBox_Changed"/>
+            <TextBlock Foreground="#888" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"
+                       Text="The helper finds the &quot;WORLD&quot; label at the top-centre of the Atlas automatically. If rumours don't appear in windowed or custom-resolution modes, turn this off and mark where the WORLD label is yourself."/>
+            <Button x:Name="SetWorldRegionButton" Content="Set WORLD region…"
+                    Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                    FontSize="11" HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0" Click="SetWorldRegionButton_Click"/>
+            <TextBlock x:Name="WorldRegionLabel" Text="" Foreground="#888" FontSize="10"
+                       Margin="0,4,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -45,6 +45,16 @@ internal sealed class AppConfig
     // How often the full-screen rumour detect runs WHILE on the Atlas map (ms). Clamped on use.
     public int RumourScanIntervalMs { get; set; } = 1800;
 
+    // Atlas gate (#45). When true (default) the loop finds the "WORLD" label automatically at the
+    // top-centre of the game window. On windowed / custom-resolution setups where the stylised label
+    // can't be read there, the user can turn this off and drag a box over the WORLD label themselves;
+    // the region is then stored in absolute screen pixels and OCR'd verbatim as the gate.
+    public bool RumourWorldAutoDetect { get; set; } = true;
+    public int RumourWorldX { get; set; }
+    public int RumourWorldY { get; set; }
+    public int RumourWorldWidth { get; set; }
+    public int RumourWorldHeight { get; set; }
+
     public Rectangle RegionRect
     {
         get => new(RegionX, RegionY, RegionWidth, RegionHeight);
@@ -52,4 +62,13 @@ internal sealed class AppConfig
     }
 
     public bool IsCalibrated => RegionWidth > 0 && RegionHeight > 0;
+
+    public Rectangle RumourWorldRect
+    {
+        get => new(RumourWorldX, RumourWorldY, RumourWorldWidth, RumourWorldHeight);
+        set { RumourWorldX = value.X; RumourWorldY = value.Y; RumourWorldWidth = value.Width; RumourWorldHeight = value.Height; }
+    }
+
+    [JsonIgnore]
+    public bool HasManualWorldRegion => RumourWorldWidth > 0 && RumourWorldHeight > 0;
 }

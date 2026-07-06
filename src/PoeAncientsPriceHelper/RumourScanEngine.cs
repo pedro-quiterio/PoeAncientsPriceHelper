@@ -13,6 +13,9 @@ internal sealed class RumourScanEngine : IDisposable
     private readonly Func<Rectangle> _screen;
     private readonly Func<bool> _enabled;
     private readonly Func<int> _intervalMs;
+    // Manual atlas gate (#45): returns the user-drawn WORLD region (absolute screen px) when auto-detect
+    // is off, else null → the loop computes the gate from the game viewport as usual.
+    private readonly Func<Rectangle?> _worldRegion;
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
@@ -30,12 +33,14 @@ internal sealed class RumourScanEngine : IDisposable
     private const int MinIntervalMs = 500;
     private const int MaxIntervalMs = 10000;
 
-    public RumourScanEngine(RumourScanner scanner, Func<Rectangle> screen, Func<bool> enabled, Func<int> intervalMs)
+    public RumourScanEngine(RumourScanner scanner, Func<Rectangle> screen, Func<bool> enabled, Func<int> intervalMs,
+        Func<Rectangle?>? worldRegion = null)
     {
         _scanner = scanner;
         _screen = screen;
         _enabled = enabled;
         _intervalMs = intervalMs;
+        _worldRegion = worldRegion ?? (() => null);
     }
 
     public static int ClampInterval(int ms) => Math.Clamp(ms, MinIntervalMs, MaxIntervalMs);
@@ -49,6 +54,7 @@ internal sealed class RumourScanEngine : IDisposable
         _showing = false;
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
+        RumourDiag.Log($"=== rumour engine start ===\n{GameWindow.Describe()}");
         _loop = Task.Run(() => RunLoopAsync(_cts.Token));
     }
 
@@ -98,12 +104,20 @@ internal sealed class RumourScanEngine : IDisposable
                 }
                 var gateArea = poeFound ? game.ClientBounds : screen;
 
-                // Cheap WORLD gate (~1 Hz). Off the map this is the only work the loop does.
+                // Cheap WORLD gate (~1 Hz). Off the map this is the only work the loop does. The user
+                // can override the auto-computed band with a hand-drawn region (#45) for windowed /
+                // custom-resolution setups where the label isn't at the viewport's top-centre.
                 if ((now - lastGate).TotalMilliseconds >= GateIntervalMs)
                 {
                     lastGate = now;
-                    var gateLines = _scanner.CaptureLines(WorldGateRegion(gateArea));
+                    var overrideRegion = _worldRegion();
+                    var gateRegion = overrideRegion ?? WorldGateRegion(gateArea);
+                    var gateLines = _scanner.CaptureLines(gateRegion);
                     bool nowOnMap = ContainsWorldToken(gateLines);
+                    RumourDiag.Log(
+                        $"gate poeFound={poeFound} src={(poeFound ? game.Source : "-")} " +
+                        $"gateRegion={gateRegion} manual={overrideRegion is not null} WORLD={nowOnMap} " +
+                        $"raw=[{string.Join(" | ", gateLines.Select(l => l.Text.Trim()))}]");
                     if (!nowOnMap && onMap)
                     {
                         // Left the map — drop the overlay and clear any dismiss latch.
@@ -120,6 +134,10 @@ internal sealed class RumourScanEngine : IDisposable
                     lastScan = now;
                     var result = _scanner.ReadOnce(screen);
                     bool present = result is { Rows.Count: > 0 };
+                    RumourDiag.Log(present
+                        ? $"detect present=true rows={result!.Rows.Count} " +
+                          $"names=[{string.Join(" | ", result.Rows.Select(r => $"{r.OcrName}{(r.Matched ? "→" + r.Entry!.Rumor : "→?")}"))}]"
+                        : "detect present=false (no panel)");
 
                     if (_dismissed)
                     {

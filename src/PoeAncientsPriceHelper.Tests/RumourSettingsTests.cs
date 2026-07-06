@@ -14,6 +14,30 @@ public class RumourSettingsTests
     }
 
     [Fact]
+    public void WorldRegion_DefaultsToAutoDetect_NoManualRegion()
+    {
+        var cfg = new AppConfig();
+        Assert.True(cfg.RumourWorldAutoDetect);
+        Assert.False(cfg.HasManualWorldRegion);
+    }
+
+    [Fact]
+    public void WorldRegion_RoundTrips_AndFlagsManual()
+    {
+        using var dir = new TempDir();
+        ConfigStore.Save(new AppConfig
+        {
+            RumourWorldAutoDetect = false,
+            RumourWorldRect = new System.Drawing.Rectangle(770, 138, 380, 54),
+        }, dir.Path);
+
+        var loaded = ConfigStore.Load(dir.Path);
+        Assert.False(loaded.RumourWorldAutoDetect);
+        Assert.True(loaded.HasManualWorldRegion);
+        Assert.Equal(new System.Drawing.Rectangle(770, 138, 380, 54), loaded.RumourWorldRect);
+    }
+
+    [Fact]
     public void OlderConfig_MissingKeys_KeepsDefaults()
     {
         // A config.json written before the rumour fields existed must load with the defaults applied,

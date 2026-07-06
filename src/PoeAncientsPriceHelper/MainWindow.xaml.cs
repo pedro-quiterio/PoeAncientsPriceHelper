@@ -424,12 +424,17 @@ public partial class MainWindow : Window
         _rumourCapture = CreateCaptureBackend();
         _rumourScanner = new RumourScanner(_rumourCapture, new OcrScanner(), _rumours);
         _rumourEngine = new RumourScanEngine(_rumourScanner, RumourScreen,
-            () => _config.RumourHelperEnabled, () => _config.RumourScanIntervalMs);
+            () => _config.RumourHelperEnabled, () => _config.RumourScanIntervalMs, ManualWorldRegion);
         _rumourEngine.Start();
     }
 
     // The screen the rumour loop watches: the monitor PoE runs on (derived from the calibrated price
     // region when available), else the primary monitor.
+    // The manual WORLD gate region (#45), or null to let the loop auto-detect it. Read live each gate
+    // tick, so toggling auto-detect or re-marking the region in Settings takes effect without a restart.
+    private System.Drawing.Rectangle? ManualWorldRegion() =>
+        !_config.RumourWorldAutoDetect && _config.HasManualWorldRegion ? _config.RumourWorldRect : null;
+
     private System.Drawing.Rectangle RumourScreen() =>
         _config.IsCalibrated
             ? System.Windows.Forms.Screen.FromRectangle(_config.RegionRect).Bounds

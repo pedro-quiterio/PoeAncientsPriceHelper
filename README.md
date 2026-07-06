@@ -27,6 +27,11 @@ stack is worth.
 - **🎨 Theme switcher** — 5 dark themes (Toxic, Midnight, Obsidian, Abyss, Ember). Defaults to
   **Toxic** — its dark green gradient complements the green Start button while keeping the same
   low-light feel.
+- **🗺️ Island Rumour helper (experimental)** — optionally watches the Atlas and shows each rumour's
+  map / mods / rating (from a community spreadsheet) next to the *Uncharted Waters / Island Rumours*
+  panel. It finds the Atlas by the **WORLD** label automatically; on windowed / custom-resolution
+  setups where that can't be read, turn off auto-detect in **Settings** and drag a box over the WORLD
+  label yourself. Scanning pauses automatically whenever the game isn't the focused window.
 
 ## Download & install
 

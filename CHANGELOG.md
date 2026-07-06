@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.9] — 2026-07-06
+
+### Fixed
+
+- **Rumour scanning now finds the game in windowed / custom-resolution setups.** The window it watches
+  is now located by the Path of Exile **process** rather than only by matching the window title, which
+  is more reliable across window decorations and layouts. (Follow-up to #45.)
+
+### Added
+
+- **Manual Atlas region for the rumour helper.** The helper decides it's on the Atlas by reading the
+  **WORLD** label at the top of the map. On some windowed / custom-resolution setups that stylised
+  label can't be read where it's expected, so the rumour overlay never appears. Settings now has an
+  **"Auto-detect the Atlas map"** toggle (on by default); turn it off and click **"Set WORLD region…"**
+  to drag a box over the WORLD label yourself. The guide (README) shows exactly what to select. (#45)
+
 ## [3.5.8] — 2026-07-05
 
 ### Fixed

@@ -73,7 +73,25 @@ public partial class SettingsWindow : Window
             items.FirstOrDefault(i => (int)i.Tag! == _config.RumourScanIntervalMs)
             ?? items.First(i => (int)i.Tag! == 1800);
 
+        // Atlas gate (#45): auto-detect on/off + the hand-drawn WORLD region for manual mode.
+        RumourAutoWorldBox.IsChecked = _config.RumourWorldAutoDetect;
+        UpdateWorldRegionUi();
+
         _loading = false;
+    }
+
+    // Reflect the current auto-detect / manual-region state: the "Set WORLD region" button is only
+    // relevant when auto-detect is off, and the label shows the saved box (or a prompt to set one).
+    private void UpdateWorldRegionUi()
+    {
+        bool manual = _config.RumourWorldAutoDetect == false;
+        SetWorldRegionButton.IsEnabled = manual;
+        WorldRegionLabel.Visibility = manual ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        WorldRegionLabel.Text = !manual
+            ? ""
+            : _config.HasManualWorldRegion
+                ? $"WORLD region: x={_config.RumourWorldX} y={_config.RumourWorldY} {_config.RumourWorldWidth}×{_config.RumourWorldHeight}"
+                : "No region set yet — open the Atlas in-game, then click “Set WORLD region…”.";
     }
 
     protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
@@ -127,6 +145,38 @@ public partial class SettingsWindow : Window
         if (_loading || RumourIntervalBox.SelectedItem is not ComboBoxItem { Tag: int ms }) return;
         _config.RumourScanIntervalMs = RumourScanEngine.ClampInterval(ms);
         ConfigStore.Save(_config);
+    }
+
+    // Atlas auto-detect toggle (#45). Read live by the running loop, so no restart needed.
+    private void RumourAutoWorldBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _config.RumourWorldAutoDetect = RumourAutoWorldBox.IsChecked == true;
+        ConfigStore.Save(_config);
+        UpdateWorldRegionUi();
+    }
+
+    // Manual WORLD-region picker (#45): drag a box over the atlas "WORLD" label. Reuses the price
+    // calibration overlay (full-desktop snapshot, absolute-pixel result). The settings window is hidden
+    // during the pick so it can't cover the label; the running loop reads the saved region live.
+    private void SetWorldRegionButton_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+        System.Drawing.Rectangle? rect;
+        try
+        {
+            rect = CalibrationOverlay.RunOnStaThread(
+                "Open the Atlas in-game, then drag a box around the \"WORLD\" label at the top. ENTER to confirm, ESC to cancel.");
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+        if (rect is null) return;
+        _config.RumourWorldRect = rect.Value;
+        ConfigStore.Save(_config);
+        UpdateWorldRegionUi();
     }
 
     // The community spreadsheet the rumour ratings come from (public read-only view).
