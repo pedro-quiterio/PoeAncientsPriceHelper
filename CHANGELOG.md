@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.11] — 2026-07-06
+
+### Fixed
+
+- **Rumour helper now detects the Atlas at low / windowed resolutions.** The check that decides you're
+  on the Atlas reads the on-screen **WORLD** label — but at smaller windowed / custom resolutions that
+  stylised banner is only ~20px tall, which the OCR engine returned *nothing* for, so the rumour overlay
+  never appeared (with auto-detect *or* a hand-set WORLD region). The gate region is now upscaled before
+  reading, and the match tolerates a stylised-font misread, so it reads "WORLD" reliably. Confirmed
+  against a real failing capture. (#45)
+
 ## [3.5.10] — 2026-07-06
 
 ### Fixed

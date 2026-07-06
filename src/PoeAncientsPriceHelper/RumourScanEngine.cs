@@ -112,11 +112,14 @@ internal sealed class RumourScanEngine : IDisposable
                     lastGate = now;
                     var overrideRegion = _worldRegion();
                     var gateRegion = overrideRegion ?? WorldGateRegion(gateArea);
-                    var gateLines = _scanner.CaptureLines(gateRegion);
+                    // The stylised "WORLD" banner is small (~20px) at low/windowed resolutions and OCRs
+                    // as nothing at native size, so upscale the tiny gate region before reading it (#45).
+                    int upscale = GateUpscale(gateRegion.Height);
+                    var gateLines = _scanner.CaptureLines(gateRegion, upscale);
                     bool nowOnMap = ContainsWorldToken(gateLines);
                     RumourDiag.Log(
                         $"gate poeFound={poeFound} src={(poeFound ? game.Source : "-")} " +
-                        $"gateRegion={gateRegion} manual={overrideRegion is not null} WORLD={nowOnMap} " +
+                        $"gateRegion={gateRegion} x{upscale} manual={overrideRegion is not null} WORLD={nowOnMap} " +
                         $"raw=[{string.Join(" | ", gateLines.Select(l => l.Text.Trim()))}]");
                     if (!nowOnMap && onMap)
                     {
@@ -194,9 +197,30 @@ internal sealed class RumourScanEngine : IDisposable
         return new Rectangle(x, area.Top, w, h);
     }
 
-    // True if a gate line contains "world" as a whole word (so "underworld" etc. can't trip it).
-    internal static bool ContainsWorldToken(IEnumerable<OcrTextLine> lines) =>
-        lines.Any(l => NameNormalizer.Normalize(l.Text).Split(' ').Contains("world"));
+    // Upscale factor for the WORLD-gate region so its small banner text reaches ~140px tall — the range
+    // where the OCR engine reads it. Capped at 5×: beyond that, over-upscaling a tiny source blurs the
+    // glyphs and OCR mangles them again (measured on a real 198×34 capture: 4–5× clean, 6× garbled).
+    internal static int GateUpscale(int regionHeight)
+    {
+        if (regionHeight <= 0) return 1;
+        return Math.Clamp((int)Math.Round(140.0 / regionHeight), 1, 5);
+    }
+
+    // True if a gate line reads "world". Exact whole-word match first (so "underworld" etc. can't trip
+    // it); then a tolerant fallback — the stylised banner can OCR a glyph off even after upscaling
+    // ("worid", "vvorld"), so a close ~5-letter token still counts as being on the Atlas map.
+    internal static bool ContainsWorldToken(IEnumerable<OcrTextLine> lines)
+    {
+        foreach (var line in lines)
+        foreach (var tok in NameNormalizer.Normalize(line.Text).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (tok == "world") return true;
+            if (tok.Length is >= 4 and <= 7 &&
+                1.0 - (double)ScanEngine.Levenshtein(tok, "world") / 5.0 >= 0.6)   // ≤2 edits from "world"
+                return true;
+        }
+        return false;
+    }
 
     public void Dispose()
     {

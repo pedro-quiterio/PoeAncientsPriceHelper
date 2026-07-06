@@ -40,12 +40,12 @@ internal sealed class RumourScanner
     // Capture `region`, OCR it, and return the lines with bounds shifted into absolute screen coords
     // (so an overlay can be placed against them). Used both for the small WORLD-gate region and the
     // full screen.
-    public IReadOnlyList<OcrTextLine> CaptureLines(Rectangle region)
+    public IReadOnlyList<OcrTextLine> CaptureLines(Rectangle region, int upscale = 1)
     {
         lock (_gate)
         {
             using var bmp = _capture.CaptureRegion(region);
-            var lines = _ocr.RecognizeLines(bmp);
+            var lines = _ocr.RecognizeLines(bmp, upscale: upscale);
             return lines
                 .Select(l => l with { Bounds = Offset(l.Bounds, region.Location) })
                 .ToList();

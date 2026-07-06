@@ -167,10 +167,15 @@ internal sealed class OcrScanner
     // Optionally inverts first (light-on-dark game text → dark-on-light reads more reliably), and
     // downscales when the frame exceeds the engine's MaxImageDimension, mapping the boxes back to
     // original coordinates so callers can position an overlay against them.
-    public IReadOnlyList<OcrTextLine> RecognizeLines(Bitmap bmp, bool invert = true)
+    public IReadOnlyList<OcrTextLine> RecognizeLines(Bitmap bmp, bool invert = true, int upscale = 1)
     {
-        using var prepared = invert ? Preprocess(bmp) : null;
-        var working = prepared ?? bmp;
+        // Small regions (e.g. the Atlas "WORLD" gate band at low/windowed resolutions) carry text only
+        // ~20px tall, which the OCR engine returns nothing for; upscaling first makes it readable (#45).
+        using var enlarged = upscale > 1 ? Upscale(bmp, upscale) : null;
+        var source = enlarged ?? bmp;
+
+        using var prepared = invert ? Preprocess(source) : null;
+        var working = prepared ?? source;
 
         int maxDim = (int)OcrEngine.MaxImageDimension;
         double scale = 1.0;
@@ -185,7 +190,8 @@ internal sealed class OcrScanner
         foreach (var line in result.Lines)
         {
             if (string.IsNullOrWhiteSpace(line.Text) || line.Words.Count == 0) continue;
-            var bounds = UnionBounds(line, scale);
+            // Map boxes back through BOTH the upscale and any max-dimension downscale to source coords.
+            var bounds = UnionBounds(line, scale * upscale);
             if (!bounds.IsEmpty) lines.Add(new OcrTextLine(line.Text.Trim(), bounds));
         }
         return lines;

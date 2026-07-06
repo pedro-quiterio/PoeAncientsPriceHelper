@@ -59,4 +59,26 @@ public class RumourScanEngineTests
         Assert.False(RumourScanEngine.ContainsWorldToken([Line("Mistwood"), Line("Hideout")]));
         Assert.False(RumourScanEngine.ContainsWorldToken([]));
     }
+
+    [Theory]
+    [InlineData("worid")]    // l→i, a single-glyph OCR slip on the stylised banner
+    [InlineData("vvorld")]   // W read as "vv"
+    [InlineData("wORLO")]    // trailing D→O
+    public void ContainsWorldToken_TrueForCloseOcrMisreads(string misread)
+    {
+        // Even upscaled, the ornate WORLD banner can lose a glyph; a near-match still counts as "on map" (#45).
+        Assert.True(RumourScanEngine.ContainsWorldToken([Line(misread)]));
+    }
+
+    [Theory]
+    [InlineData(34, 4)]      // the tester's manual box height → 4× (reads "WORLD" cleanly)
+    [InlineData(54, 3)]      // auto band on a 816-tall client
+    [InlineData(72, 2)]
+    [InlineData(140, 1)]
+    [InlineData(500, 1)]     // already large → no upscale
+    [InlineData(20, 5)]      // very small → capped at 5× (6×+ over-blurs the source)
+    public void GateUpscale_TargetsReadableTextHeight(int regionHeight, int expected)
+    {
+        Assert.Equal(expected, RumourScanEngine.GateUpscale(regionHeight));
+    }
 }
