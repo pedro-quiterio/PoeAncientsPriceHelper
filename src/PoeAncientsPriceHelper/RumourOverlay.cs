@@ -71,6 +71,8 @@ internal sealed class RumourOverlayForm : Form
 {
     private IReadOnlyList<RumourResultRow> _rows = [];
     private Rectangle _panelBounds;
+    private string _lastSig = "";                 // last rendered signature — skip repaint when unchanged (#45)
+    private const int BoundsJitterPx = 12;        // detected-bounds moves under this are treated as "same"
     private readonly Rectangle _screenBounds;
     private readonly Font _nameFont = new("Segoe UI", 14, FontStyle.Bold);
     private readonly Font _detailFont = new("Segoe UI", 12, FontStyle.Regular);
@@ -115,11 +117,45 @@ internal sealed class RumourOverlayForm : Form
     {
         if (IsDisposed) return;
         if (InvokeRequired) { BeginInvoke(() => ShowResult(rows, panelBounds)); return; }
+
+        // Ignore sub-threshold jitter in the detected panel bounds so the overlay doesn't wobble every
+        // scan pass (the OCR-detected bounds shift a few px between reads). (#45)
+        if (!Visible || RectShift(_panelBounds, panelBounds) > BoundsJitterPx)
+            _panelBounds = panelBounds;
         _rows = rows;
-        _panelBounds = panelBounds;
-        if (!Visible) Show();
-        ForceTopmost();
+
+        bool wasVisible = Visible;
+        if (!wasVisible) Show();
+        ForceTopmost();   // keep on top every pass — cheap, no repaint
+
+        // Skip the (cross-thread, layered-window) repaint when what the user sees hasn't changed. The
+        // loop re-resolves the panel every ~1-2s, but a panel's rumours don't move while it's open, so
+        // re-rendering identical content just made the overlay flicker and hard to read. (#45)
+        var sig = ResultSignature(_rows, _panelBounds);
+        if (wasVisible && sig == _lastSig) return;
+        _lastSig = sig;
         RenderLayered();
+    }
+
+    // Largest edge displacement between two rects — used to treat tiny detected-bounds jitter as "same".
+    private static int RectShift(Rectangle a, Rectangle b) =>
+        Math.Max(Math.Max(Math.Abs(a.Left - b.Left), Math.Abs(a.Top - b.Top)),
+                 Math.Max(Math.Abs(a.Right - b.Right), Math.Abs(a.Bottom - b.Bottom)));
+
+    // A string that captures everything the render depends on — the resolved (displayed) rumour data and
+    // the stabilised panel bounds — so an unchanged pass can skip the repaint. Under --debug the raw OCR
+    // read is included, so debug sessions still repaint as reads jitter.
+    private static string ResultSignature(IReadOnlyList<RumourResultRow> rows, Rectangle bounds)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(bounds).Append(';');
+        foreach (var r in rows)
+        {
+            sb.Append(r.Entry is { } e ? $"{e.Rumor}|{e.MapType}|{e.Mods}|{e.Rating}" : "unknown");
+            if (App.DebugMode) sb.Append('<').Append(r.OcrName);
+            sb.Append('\n');
+        }
+        return sb.ToString();
     }
 
     public void HideNow()
@@ -127,6 +163,7 @@ internal sealed class RumourOverlayForm : Form
         if (IsDisposed) return;
         if (InvokeRequired) { BeginInvoke(HideNow); return; }
         _rows = [];
+        _lastSig = "";   // force a fresh render when the overlay next appears
         if (Visible) Hide();
     }
 

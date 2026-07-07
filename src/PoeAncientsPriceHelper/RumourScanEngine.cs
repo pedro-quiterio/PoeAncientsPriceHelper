@@ -197,14 +197,13 @@ internal sealed class RumourScanEngine : IDisposable
         return new Rectangle(x, area.Top, w, h);
     }
 
-    // Upscale factor for the WORLD-gate region so its small banner text reaches ~140px tall — the range
-    // where the OCR engine reads it. Capped at 5×: beyond that, over-upscaling a tiny source blurs the
-    // glyphs and OCR mangles them again (measured on a real 198×34 capture: 4–5× clean, 6× garbled).
-    internal static int GateUpscale(int regionHeight)
-    {
-        if (regionHeight <= 0) return 1;
-        return Math.Clamp((int)Math.Round(140.0 / regionHeight), 1, 5);
-    }
+    // Upscale factor for the WORLD-gate region. The stylised banner text is only ~20-30px tall at
+    // windowed / default / custom resolutions and the OCR engine reads it only when enlarged ~4× — a
+    // FLAT factor, not inverse-height: a wider/taller gate band still holds the SAME small text, so it
+    // needs the same magnification, not less. (An earlier inverse-height formula gave a 54px band only
+    // 3×, which read garbage; 4× reads "WORLD" cleanly — measured on real 34px and 54px captures, where
+    // 6× starts to over-blur.) Native 4K bands are already large enough, so they're left at 1×.
+    internal static int GateUpscale(int regionHeight) => regionHeight is > 0 and < 200 ? 4 : 1;
 
     // True if a gate line reads "world". Exact whole-word match first (so "underworld" etc. can't trip
     // it); then a tolerant fallback — the stylised banner can OCR a glyph off even after upscaling

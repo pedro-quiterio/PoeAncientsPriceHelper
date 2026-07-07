@@ -71,13 +71,14 @@ public class RumourScanEngineTests
     }
 
     [Theory]
-    [InlineData(34, 4)]      // the tester's manual box height → 4× (reads "WORLD" cleanly)
-    [InlineData(54, 3)]      // auto band on a 816-tall client
-    [InlineData(72, 2)]
-    [InlineData(140, 1)]
-    [InlineData(500, 1)]     // already large → no upscale
-    [InlineData(20, 5)]      // very small → capped at 5× (6×+ over-blurs the source)
-    public void GateUpscale_TargetsReadableTextHeight(int regionHeight, int expected)
+    [InlineData(34, 4)]      // tester's manual box → 4× (reads "WORLD")
+    [InlineData(54, 4)]      // auto band on an 816-tall client → 4× (3× read garbage; the fix)
+    [InlineData(72, 4)]      // default-res auto band → still 4×
+    [InlineData(150, 4)]
+    [InlineData(200, 1)]     // large band (native 4K) → text already readable, no upscale
+    [InlineData(500, 1)]
+    [InlineData(0, 1)]       // guard against a zero-height region
+    public void GateUpscale_FlatFourForSmallBands(int regionHeight, int expected)
     {
         Assert.Equal(expected, RumourScanEngine.GateUpscale(regionHeight));
     }

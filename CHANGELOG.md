@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.12] — 2026-07-07
+
+### Fixed
+
+- **Rumour helper now detects the Atlas at custom / windowed resolutions.** The previous release
+  magnified the on-screen "WORLD" label by the wrong amount at smaller resolutions — a wider detection
+  band was enlarged *less*, so it read gibberish and the overlay never appeared (while default
+  resolution and the price overlay kept working). Magnification is now a flat, sufficient amount, so
+  "WORLD" is read reliably. Confirmed against a real failing capture. (#45)
+- **Rumour overlay no longer flickers every 1-2 seconds.** It re-rendered on every scan even when
+  nothing had changed, and wobbled as the detected panel bounds jittered a few pixels — making the
+  ratings hard to read. It now repaints only when the displayed rumours or position actually change,
+  and ignores sub-pixel-jitter movement, so it stays steady while a panel is open. (#45)
+
 ## [3.5.11] — 2026-07-06
 
 ### Fixed
