@@ -16,6 +16,9 @@ internal sealed class RumourScanEngine : IDisposable
     // Manual atlas gate (#45): returns the user-drawn WORLD region (absolute screen px) when auto-detect
     // is off, else null → the loop computes the gate from the game viewport as usual.
     private readonly Func<Rectangle?> _worldRegion;
+    // Holds the best resolution per rumour row while a panel is open so the ratings stop flickering
+    // resolved↔"unknown" as OCR jitters between passes (#45 follow-up). Reset when the panel closes.
+    private readonly RumourStabilizer _stabilizer = new();
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
@@ -155,7 +158,11 @@ internal sealed class RumourScanEngine : IDisposable
                     }
                     else if (present)
                     {
-                        RumourOverlayManager.Show(result!.Rows, result.PanelBounds);
+                        // Hold the best resolution seen so far stable — the panel's rumours don't change
+                        // while it's open, so a row that OCR reads differently this pass mustn't flip its
+                        // rating under the user (#45 follow-up).
+                        var stableRows = _stabilizer.Stabilize(result!.Rows);
+                        RumourOverlayManager.Show(stableRows, result.PanelBounds);
                         _showing = true;
                         missStreak = 0;
                     }
@@ -178,8 +185,11 @@ internal sealed class RumourScanEngine : IDisposable
         HideOverlay();
     }
 
-    private static void HideOverlay()
+    private void HideOverlay()
     {
+        // Drop the accumulated per-row locks so a reopened panel starts fresh (mirrors the price loop
+        // clearing its slots when the panel closes).
+        _stabilizer.Reset();
         if (_showing) { RumourOverlayManager.HideNow(); _showing = false; }
     }
 

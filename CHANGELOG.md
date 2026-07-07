@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.13] — 2026-07-07
+
+### Fixed
+
+- **Rumour ratings no longer change under you while a panel is open.** Each scan re-read and re-matched
+  the panel from scratch, so a row could still flip between its rating and "unknown rumour" (or briefly
+  jump to a different rumour) whenever the OCR read a line slightly differently — even after the 3.5.12
+  de-flicker. The helper now remembers the best result it has resolved for each row and holds it steady:
+  once a row is recognised it stays put, and only changes if a genuinely different rumour is read on two
+  consecutive scans (i.e. the panel actually changed). It resets when the panel closes, so reopening a
+  different panel still starts fresh. (#45)
+
 ## [3.5.12] — 2026-07-07
 
 ### Fixed
