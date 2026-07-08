@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-07-08
+
+### Added
+
+- **Hotkeys can now use modifier chords** such as `Ctrl+Q`, `Ctrl+Shift+Q`, or `Alt+F5`. Rebinding
+  captures the modifiers you hold together with the final key, and the Settings window shows the chord
+  (e.g. `Ctrl+Q`). Chords are matched exactly, so `Q` and `Ctrl+Q` are independent bindings that never
+  trigger each other — a modifier chord is far less likely to fire by accident mid-combat. Existing
+  single-key bindings and older config files keep working unchanged. (#46)
+
+### Fixed
+
+- **Overlay no longer stops working while the game is running.** The focus check added in 3.5.8 paused
+  detection whenever Path of Exile wasn't the foreground window, but it demanded an exact match against
+  the process's main window handle — which several client setups never satisfy, so the overlay paused
+  and never resumed even with the game clearly in front. It now treats the game as focused whenever the
+  foreground window belongs to the same process, and keeps scanning if it can't tell. (#47)
+
 ## [3.5.13] — 2026-07-07
 
 ### Fixed
