@@ -40,8 +40,24 @@ internal static class GameWindow
         var client = new Rectangle(origin.X, origin.Y, rc.Right - rc.Left, rc.Bottom - rc.Top);
         if (client.Width <= 0 || client.Height <= 0) { info = default; return false; }
 
-        info = new GameWindowInfo(handle, client, handle == GetForegroundWindow(), source);
+        info = new GameWindowInfo(handle, client, IsGameForeground(handle), source);
         return true;
+    }
+
+    // Is the game in front? NOT an exact-handle test: some clients (multiple top-level windows, the
+    // borderless/overlay child that actually takes focus) make GetForegroundWindow() return a window
+    // that ISN'T the process's MainWindowHandle, so `fg == handle` reads as "not foreground" forever and
+    // the overlay never resumes (#47, regression from the 3.5.8 focus gate). Instead we treat the game as
+    // foreground when the focused window belongs to the SAME PROCESS as the detected game window. FAIL-OPEN:
+    // if the foreground window (or either PID) can't be resolved, assume foreground so we keep scanning.
+    private static bool IsGameForeground(IntPtr gameHandle)
+    {
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero || fg == gameHandle) return true;
+        GetWindowThreadProcessId(gameHandle, out uint gamePid);
+        GetWindowThreadProcessId(fg, out uint fgPid);
+        if (gamePid == 0 || fgPid == 0) return true;
+        return gamePid == fgPid;
     }
 
     // A visible, non-minimised top-level window belonging to a PathOfExile* process.
@@ -141,6 +157,7 @@ internal static class GameWindow
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextLength(IntPtr hWnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
     [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
