@@ -32,9 +32,9 @@ public partial class SettingsWindow : Window
     {
         _loading = true;
 
-        HotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.Parse(_config.StartStopHotkey));
-        DebugHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.Parse(_config.DebugHotkey));
-        CalibrateHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.Parse(_config.CalibrateHotkey));
+        HotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.StartStopHotkey));
+        DebugHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.DebugHotkey));
+        CalibrateHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.CalibrateHotkey));
 
         ThemeBox.ItemsSource = ThemePresets.Names;
         ThemeBox.SelectedItem = ThemePresets.Resolve(_config.Theme);
@@ -238,11 +238,11 @@ public partial class SettingsWindow : Window
         _rebindButton = button;
         _rebindLabel = label;
         SetRebindButtonsEnabled(false);
-        button.Content = "Press a key… (Esc to cancel)";
+        button.Content = "Press a key or chord… (Esc to cancel)";
         App.BeginHotkeyCapture(action, OnHotkeyCaptured);   // outcome arrives on the UI thread
     }
 
-    private void OnHotkeyCaptured(App.CaptureOutcome outcome, KeyCode code)
+    private void OnHotkeyCaptured(App.CaptureOutcome outcome, Chord chord)
     {
         switch (outcome)
         {
@@ -250,25 +250,25 @@ public partial class SettingsWindow : Window
                 switch (_rebindAction)
                 {
                     case HotkeyBinding.Action.StartStop:
-                        _config.StartStopHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetStartStopKey(code);
+                        _config.StartStopHotkey = HotkeyBinding.ToStorage(chord);
+                        App.SetStartStopChord(chord);
                         break;
                     case HotkeyBinding.Action.Debug:
-                        _config.DebugHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetDebugKey(code);
+                        _config.DebugHotkey = HotkeyBinding.ToStorage(chord);
+                        App.SetDebugChord(chord);
                         break;
                     case HotkeyBinding.Action.Calibrate:
-                        _config.CalibrateHotkey = HotkeyBinding.ToStorage(code);
-                        App.SetCalibrateKey(code);
+                        _config.CalibrateHotkey = HotkeyBinding.ToStorage(chord);
+                        App.SetCalibrateChord(chord);
                         break;
                 }
                 ConfigStore.Save(_config);
-                if (_rebindLabel is not null) _rebindLabel.Text = HotkeyBinding.Display(code);
+                if (_rebindLabel is not null) _rebindLabel.Text = HotkeyBinding.Display(chord);
                 EndRebind();
                 break;
             case App.CaptureOutcome.Reserved:
                 if (_rebindButton is not null)
-                    _rebindButton.Content = $"{HotkeyBinding.Display(code)} is in use — try another";
+                    _rebindButton.Content = $"{HotkeyBinding.Display(chord)} is in use — try another";
                 break;
             case App.CaptureOutcome.Cancelled:
                 EndRebind();

@@ -239,9 +239,9 @@ public partial class MainWindow : Window
             : _config.AvailableLeagues.FirstOrDefault();
         // Arm the global hook with all three persisted bindings. The keybind UI lives in the Settings
         // window now, but the hook must be armed at startup so the hotkeys work before it's ever opened.
-        App.SetStartStopKey(HotkeyBinding.Parse(_config.StartStopHotkey));
-        App.SetDebugKey(HotkeyBinding.Parse(_config.DebugHotkey));
-        App.SetCalibrateKey(HotkeyBinding.Parse(_config.CalibrateHotkey));
+        App.SetStartStopChord(HotkeyBinding.ParseChord(_config.StartStopHotkey));
+        App.SetDebugChord(HotkeyBinding.ParseChord(_config.DebugHotkey));
+        App.SetCalibrateChord(HotkeyBinding.ParseChord(_config.CalibrateHotkey));
         UpdateRegionLabel();
         ThemePresets.Apply(ThemePresets.Resolve(_config.Theme));
         _loading = false;

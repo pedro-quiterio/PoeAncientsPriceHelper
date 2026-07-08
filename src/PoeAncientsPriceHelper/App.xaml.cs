@@ -22,12 +22,19 @@ public partial class App : System.Windows.Application
 
     // The currently-bound hotkeys, matched on every key event. MainWindow pushes the persisted values
     // once config is loaded and again on each rebind; until then the historical defaults keep working.
-    private static volatile KeyCode _startStopKey = HotkeyBinding.DefaultStartStop;
-    private static volatile KeyCode _debugKey = HotkeyBinding.DefaultDebug;
-    private static volatile KeyCode _calibrateKey = HotkeyBinding.DefaultCalibrate;
-    internal static void SetStartStopKey(KeyCode key) => _startStopKey = key;
-    internal static void SetDebugKey(KeyCode key) => _debugKey = key;
-    internal static void SetCalibrateKey(KeyCode key) => _calibrateKey = key;
+    // Held as one immutable record behind a single volatile reference so the hook thread always reads a
+    // consistent set (a Chord is a two-field struct — it can't be `volatile` and a plain field could tear
+    // across threads). Writers are UI-thread only, so the read-modify-write in the setters can't race.
+    private sealed record HotkeyBindings(Chord StartStop, Chord Debug, Chord Calibrate);
+    private static volatile HotkeyBindings _bindings = new(
+        HotkeyBinding.DefaultStartStop, HotkeyBinding.DefaultDebug, HotkeyBinding.DefaultCalibrate);
+    internal static void SetStartStopChord(Chord chord) => _bindings = _bindings with { StartStop = chord };
+    internal static void SetDebugChord(Chord chord) => _bindings = _bindings with { Debug = chord };
+    internal static void SetCalibrateChord(Chord chord) => _bindings = _bindings with { Calibrate = chord };
+
+    // Live modifier state, updated as modifier keys go down/up so a key release can be matched as a full
+    // chord (#46). Enum with an int base ⇒ safe to mark volatile for the hook thread.
+    private static volatile Modifiers _mods = Modifiers.None;
 
     // One-shot rebind capture. While active, the hook swallows keys from their normal actions and the
     // next available key becomes the binding. Outcomes are reported via the callback, marshalled to the
@@ -37,9 +44,9 @@ public partial class App : System.Windows.Application
     internal enum CaptureOutcome { Captured, Cancelled, Reserved }
     private static volatile bool _capturing;
     private static volatile HotkeyBinding.Action _captureAction;
-    private static Action<CaptureOutcome, KeyCode>? _captureCallback;
+    private static Action<CaptureOutcome, Chord>? _captureCallback;
 
-    internal static void BeginHotkeyCapture(HotkeyBinding.Action action, Action<CaptureOutcome, KeyCode> onEvent)
+    internal static void BeginHotkeyCapture(HotkeyBinding.Action action, Action<CaptureOutcome, Chord> onEvent)
     {
         _captureAction = action;
         _captureCallback = onEvent;
@@ -109,23 +116,36 @@ public partial class App : System.Windows.Application
         _hook = new TaskPoolGlobalHook();
         _hook.KeyPressed += (_, ev) =>
         {
+            var code = ev.Data.KeyCode;
+            var mod = HotkeyBinding.ModifierOf(code);
+            if (mod != Modifiers.None) _mods |= mod;   // track modifier state even during a rebind capture
+            if (code is KeyCode.VcLeftControl) _leftCtrlDown = true;
             if (_capturing) return;   // rebind in progress: swallow keys from their normal actions
             // ESC closes the in-game panel — hide the overlay the instant the key goes down.
-            if (ev.Data.KeyCode == KeyCode.VcEscape) { DismissOverlay(); DismissRumour(); }
-            else if (ev.Data.KeyCode is KeyCode.VcLeftControl) _leftCtrlDown = true;
+            if (code == KeyCode.VcEscape) { DismissOverlay(); DismissRumour(); }
         };
         _hook.KeyReleased += (_, ev) =>
         {
             var code = ev.Data.KeyCode;
-            if (_capturing) { HandleCapture(code); return; }   // swallow + consume for rebind
-            // Act on release (not press) so holding a key can't auto-repeat-fire many times.
-            if (code == _debugKey) PriceOverlayManager.ToggleDebug();
-            else if (code == _calibrateKey) InvokeCalibrate();
-            else if (code == _startStopKey) InvokeStartStopToggle();
+            var mod = HotkeyBinding.ModifierOf(code);
+            var heldMods = _mods;                       // modifiers held at the instant of release
+            if (mod != Modifiers.None) _mods &= ~mod;   // clear the released modifier
+            if (code is KeyCode.VcLeftControl) _leftCtrlDown = false;
+            // A modifier alone never triggers an action, and never completes a rebind — a chord must end
+            // on a non-modifier key. `heldMods` still carries the other modifiers held with this key.
+            if (mod != Modifiers.None) return;
+
+            var chord = new Chord(code, heldMods);
+            if (_capturing) { HandleCapture(chord); return; }   // swallow + consume for rebind
+            // Act on release (not press) so holding a key can't auto-repeat-fire many times. Exact-chord
+            // match: `Q` and `Ctrl+Q` are distinct and never fire each other (#46).
+            var b = _bindings;
+            if (chord == b.Debug) PriceOverlayManager.ToggleDebug();
+            else if (chord == b.Calibrate) InvokeCalibrate();
+            else if (chord == b.StartStop) InvokeStartStopToggle();
             // Debug-only one-shot rumour read (#34 spine). F8 triggers a full-screen detect + overlay;
             // the WORLD-gated auto-detect loop (#35) supersedes this manual trigger.
-            else if (DebugMode && code == KeyCode.VcF8) InvokeRumourScan();
-            else if (code is KeyCode.VcLeftControl) _leftCtrlDown = false;
+            else if (DebugMode && chord == new Chord(KeyCode.VcF8)) InvokeRumourScan();
         };
         // Left-Ctrl + left click (the in-game "purchase" gesture) also dismisses the overlay.
         _hook.MousePressed += (_, ev) =>
@@ -139,43 +159,45 @@ public partial class App : System.Windows.Application
     // Runs on a hook thread-pool thread. Esc cancels; a reserved key or one already bound to another
     // action reports back but keeps listening; anything else is the new binding. The callback is
     // marshalled to the UI thread.
-    private static void HandleCapture(KeyCode code)
+    private static void HandleCapture(Chord chord)
     {
-        if (code == KeyCode.VcEscape) { FinishCapture(CaptureOutcome.Cancelled, code); return; }
-        if (HotkeyBinding.IsReserved(code) || CollidesWithOtherAction(code, _captureAction))
+        if (chord.Key == KeyCode.VcEscape) { FinishCapture(CaptureOutcome.Cancelled, chord); return; }
+        if (HotkeyBinding.IsReserved(chord.Key) || CollidesWithOtherAction(chord, _captureAction))
         {
-            ReportCapture(CaptureOutcome.Reserved, code);
+            ReportCapture(CaptureOutcome.Reserved, chord);
             return;
         }
-        FinishCapture(CaptureOutcome.Captured, code);
+        FinishCapture(CaptureOutcome.Captured, chord);
     }
 
-    // True if the key is already bound to one of the two actions that isn't the one being rebound —
+    // True if the chord is already bound to one of the two actions that isn't the one being rebound —
     // binding it would make a single press fire two actions. The action being rebound is skipped so
-    // re-confirming its own current key is allowed.
-    private static bool CollidesWithOtherAction(KeyCode code, HotkeyBinding.Action target)
+    // re-confirming its own current chord is allowed. Compares the whole chord, so `Q` and `Ctrl+Q`
+    // are treated as different bindings (#46).
+    private static bool CollidesWithOtherAction(Chord chord, HotkeyBinding.Action target)
     {
-        if (target != HotkeyBinding.Action.StartStop && code == _startStopKey) return true;
-        if (target != HotkeyBinding.Action.Debug && code == _debugKey) return true;
-        if (target != HotkeyBinding.Action.Calibrate && code == _calibrateKey) return true;
+        var b = _bindings;
+        if (target != HotkeyBinding.Action.StartStop && chord == b.StartStop) return true;
+        if (target != HotkeyBinding.Action.Debug && chord == b.Debug) return true;
+        if (target != HotkeyBinding.Action.Calibrate && chord == b.Calibrate) return true;
         return false;
     }
 
-    private static void FinishCapture(CaptureOutcome outcome, KeyCode code)
+    private static void FinishCapture(CaptureOutcome outcome, Chord chord)
     {
         _capturing = false;
         var cb = _captureCallback;
         _captureCallback = null;
-        ReportTo(cb, outcome, code);
+        ReportTo(cb, outcome, chord);
     }
 
-    private static void ReportCapture(CaptureOutcome outcome, KeyCode code) =>
-        ReportTo(_captureCallback, outcome, code);
+    private static void ReportCapture(CaptureOutcome outcome, Chord chord) =>
+        ReportTo(_captureCallback, outcome, chord);
 
-    private static void ReportTo(Action<CaptureOutcome, KeyCode>? cb, CaptureOutcome outcome, KeyCode code)
+    private static void ReportTo(Action<CaptureOutcome, Chord>? cb, CaptureOutcome outcome, Chord chord)
     {
         if (cb is null) return;
-        Current?.Dispatcher.BeginInvoke(() => cb(outcome, code));
+        Current?.Dispatcher.BeginInvoke(() => cb(outcome, chord));
     }
 
     private static void InvokeStartStopToggle() =>
