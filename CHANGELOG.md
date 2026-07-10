@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.6.1] — 2026-07-10
+
+### Fixed
+
+- **Localized item rows that show a bare stack count now match their price.** On some panels the game
+  prints the stack size as a plain `x1` after the item name (with no brackets), and OCR reads the `1`
+  as a look-alike `l` — e.g. `Runa de erosión de Saqawal xl`. That stray `xl` corrupted the name and
+  blocked the Spanish→English lookup, so the affected rows (such as the Saqawal runes) never priced.
+  The stray marker is now stripped alongside the existing bracketed `(3)` form. Note that skill/support
+  gems on the rune-combination panel are still not priced — they aren't tradeable currency. (#48)
+
 ## [3.6.0] — 2026-07-08
 
 ### Added
