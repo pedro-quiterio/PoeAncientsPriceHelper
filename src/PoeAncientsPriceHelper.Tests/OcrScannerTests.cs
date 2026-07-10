@@ -74,6 +74,13 @@ public class OcrScannerTests
     [InlineData("Orb of Alchemy [3]", "Orb of Alchemy")]
     // Only the LAST bracketed group goes — a gem's "(Level 19)" is longer/has a space, so it stays.
     [InlineData("Uncut Skill Gem (Level 19) (1)", "Uncut Skill Gem (Level 19)")]
+    // The rune-shape-combination panel (#48) shows a BARE, un-bracketed "xN" stack count — and OCR
+    // reads the "1" as its look-alike "l" ("x1" → "xl"). Stripped so the Spanish Saqawal runes match.
+    [InlineData("Runa de erosión de Saqawal xl", "Runa de erosión de Saqawal")]
+    [InlineData("Saqawal's Rune of Erosion x1", "Saqawal's Rune of Erosion")]
+    [InlineData("Adaptive Alloy x14", "Adaptive Alloy")]
+    // The "x" must be spaced off the name — a word ending in x ("...flux") is never a stack marker.
+    [InlineData("Verisium Flux", "Verisium Flux")]
     // No trailing marker → unchanged.
     [InlineData("Perfect Chaos Orb", "Perfect Chaos Orb")]
     [InlineData("Chaos Orb", "Chaos Orb")]

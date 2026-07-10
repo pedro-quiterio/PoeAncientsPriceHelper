@@ -62,6 +62,15 @@ internal sealed class OcrScanner
     // Stripped from the raw line before normalization, where the brackets are still present as the
     // reliable signal. Bracket variants ([ { are allowed since OCR sometimes reads ( as one of them.
     private static readonly Regex TrailingStackCount = new(@"\s*[(\[{]\s*[\p{L}\p{N}]{1,3}\s*[)\]}]\s*$", RegexOptions.Compiled);
+    // Some panels (the rune-shape-combination screen, issue #48) show the stack count as a BARE,
+    // un-bracketed "xN" after the name — "Saqawal's Rune of Erosion x1" — with no brackets to key on
+    // like the exchange panel's "(3)". OCR usually reads the count digit as its look-alike letter
+    // ("x1" → "xl"), so we match a trailing "x" (spaced off the name) glued to a 1–3 char run of digits
+    // or the letters Windows OCR substitutes for them in this font (l/I→1, o/O→0, S→5, B→8). Left on,
+    // the "xl" token breaks the exact localized→English translation and the row is a permanent MISS.
+    // (Only the "x1" single-stack case appears on that panel; the exchange panel's real multi-stacks use
+    // a LEADING "Nx", handled by MultiplierPattern, which this deliberately does not touch.)
+    private static readonly Regex TrailingBareStackCount = new(@"\s+x[\dlioOSB]{1,3}\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
@@ -331,11 +340,16 @@ internal sealed class OcrScanner
         return (1, false);
     }
 
-    // Remove a trailing bracketed stack-count marker ("Perfect Chaos Orb (3)" → "Perfect Chaos Orb").
-    // Runs on the RAW OCR line before normalization — the brackets are the reliable signal and are gone
-    // after Normalize. Only the last, short bracketed group goes; a gem's "(Level 19)" is left in place.
-    internal static string StripTrailingStackCount(string raw) =>
-        TrailingStackCount.Replace(raw, "").TrimEnd();
+    // Remove a trailing stack-count marker, both the exchange panel's bracketed form ("Perfect Chaos
+    // Orb (3)" → "Perfect Chaos Orb") and the rune-panel's bare "xN" form ("Saqawal's Rune x1" →
+    // "Saqawal's Rune", #48). Runs on the RAW OCR line before normalization — the brackets / the "x"
+    // boundary are the reliable signal and are gone after Normalize. Only the last, short bracketed
+    // group goes; a gem's "(Level 19)" is left in place.
+    internal static string StripTrailingStackCount(string raw)
+    {
+        var s = TrailingStackCount.Replace(raw, "").TrimEnd();
+        return TrailingBareStackCount.Replace(s, "").TrimEnd();
+    }
 
     // Strip leading noise: a glued stack marker ("6xarcanist…"), then short/numeric tokens ("e",
     // "l8"), then anything before the first quantity marker ("1x", "11x"), then remaining leading
