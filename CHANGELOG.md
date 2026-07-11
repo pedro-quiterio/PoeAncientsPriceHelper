@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-07-11
+
+### Added
+
+- **New setting: “Only scan while Path of Exile is the active window.”** On by default (the existing
+  behaviour — pricing pauses when you tab away and resumes when you return). Turn it off to keep pricing
+  running no matter what's in front, for the rare focus setups where the game is wrongly read as
+  not-in-front and the overlay stays hidden. (#49)
+
+### Fixed
+
+- **Overlay no longer pauses when you click the app's own windows.** Interacting with the Settings
+  window, the debug console, or the click-through overlay counted as "tabbed away from the game" and
+  paused pricing — sometimes for good. Focus held by the helper itself now keeps scanning. A brief
+  focus blip no longer pauses instantly either: the game has to stay out of focus for about a second
+  first, so momentary activation changes can't stop the overlay. The pause is also logged with the
+  window that took focus, to make future reports diagnosable. (#49)
+
 ## [3.6.1] — 2026-07-10
 
 ### Fixed

@@ -38,6 +38,12 @@ internal sealed class AppConfig
     // Skipped under --debug so a troubleshooting session keeps the window and console visible.
     public bool AutoStart { get; set; } = true;
 
+    // Foreground gate (#49). When true (default) the price scan pauses while the game isn't the active
+    // window — no capture/OCR, overlay hidden — and resumes on return. Turn off to keep pricing running
+    // regardless of what's in front (costs background CPU, but survives odd focus setups where the gate
+    // wrongly reads the game as not-foreground). Missing in older configs → the default true, unchanged.
+    public bool PauseWhenGameNotFocused { get; set; } = true;
+
     // Island Rumour helper (#36). Enabled by default; when off, the WORLD-gated auto-detect loop is
     // fully idle (no gate check, no OCR). Missing in older configs → the initializer keeps these
     // defaults (Newtonsoft only overwrites keys present in the file), exactly like AutoStart above.

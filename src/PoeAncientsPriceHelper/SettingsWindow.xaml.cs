@@ -59,6 +59,7 @@ public partial class SettingsWindow : Window
             ?? langItems[0];
 
         AutoStartBox.IsChecked = _config.AutoStart;
+        PauseWhenUnfocusedBox.IsChecked = _config.PauseWhenGameNotFocused;
 
         // Rumour helper (#36): on/off + scan rate presets. Tag carries the interval in ms persisted to
         // config.RumourScanIntervalMs. If the saved value isn't a preset, fall back to Normal for display
@@ -128,6 +129,15 @@ public partial class SettingsWindow : Window
     {
         if (_loading) return;
         _config.AutoStart = AutoStartBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
+
+    // Foreground gate (#49). The scan loop reads _config live each tick, so toggling this pauses or
+    // resumes pricing within a cycle — no restart needed.
+    private void PauseWhenUnfocusedBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _config.PauseWhenGameNotFocused = PauseWhenUnfocusedBox.IsChecked == true;
         ConfigStore.Save(_config);
     }
 

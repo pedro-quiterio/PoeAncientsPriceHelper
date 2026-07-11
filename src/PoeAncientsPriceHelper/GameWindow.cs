@@ -57,7 +57,25 @@ internal static class GameWindow
         GetWindowThreadProcessId(gameHandle, out uint gamePid);
         GetWindowThreadProcessId(fg, out uint fgPid);
         if (gamePid == 0 || fgPid == 0) return true;
+        // Our OWN windows (settings, the click-through overlay, the debug console) count as foreground:
+        // the user is interacting with the helper, not tabbing away from the game, so pausing there is
+        // wrong — that's the resume→pause flap in #49. Keep scanning when we hold focus.
+        if (fgPid == (uint)Environment.ProcessId) return true;
         return gamePid == fgPid;
+    }
+
+    // The foreground window's identity (hwnd/pid/process/title), for the pause diagnostic log. The
+    // plain "game not foreground" line never said WHAT stole focus, which is exactly what a false pause
+    // needs to be understood from a user's log alone (#49).
+    public static string DescribeForeground()
+    {
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return "foreground=<none>";
+        GetWindowThreadProcessId(fg, out uint pid);
+        string proc = "?";
+        try { using var p = Process.GetProcessById((int)pid); proc = p.ProcessName; }
+        catch { /* process gone / access denied — leave as '?' */ }
+        return $"foreground hwnd={fg} pid={pid} proc={proc} title='{GetTitle(fg)}'";
     }
 
     // A visible, non-minimised top-level window belonging to a PathOfExile* process.

@@ -31,7 +31,11 @@ stack is worth.
   map / mods / rating (from a community spreadsheet) next to the *Uncharted Waters / Island Rumours*
   panel. It finds the Atlas by the **WORLD** label automatically; on windowed / custom-resolution
   setups where that can't be read, turn off auto-detect in **Settings** and drag a box over the WORLD
-  label yourself. Scanning pauses automatically whenever the game isn't the focused window.
+  label yourself.
+- **Pauses when you tab away** — scanning stops while the game isn't the active window and resumes
+  when you return, so it isn't wasting cycles in the background. If it ever misbehaves on an unusual
+  focus setup, you can turn this off in **Settings → “Only scan while Path of Exile is the active
+  window”** to keep pricing running regardless of what's in front.
 
 ## Download & install
 
@@ -98,6 +102,16 @@ Remove-NetFirewallRule -DisplayName "Block IPv6 - PoeAncientsPriceHelper"
 ```
 
 > Thanks to the community for diagnosing this one.
+
+### The overlay stays hidden / prices never appear while I'm playing
+
+The overlay pauses itself while Path of Exile isn't the active window (so it isn't scanning in the
+background). On most setups it resumes the moment you're back in the game, but some unusual focus
+configurations can make it read the game as “not in front” even while you're playing — the overlay
+then stays hidden. If that happens, open **Settings** and untick **“Only scan while Path of Exile is
+the active window.”** Pricing will then run regardless of what's focused. (The **Open logs** link on
+the main window shows a `paused (game not foreground)` line with the window that grabbed focus, if
+you want to report the setup.)
 
 ### Some antivirus software flags it as malware
 

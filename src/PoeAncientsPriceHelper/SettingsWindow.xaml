@@ -132,6 +132,14 @@
                    Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
 
         <StackPanel Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
+            <CheckBox x:Name="PauseWhenUnfocusedBox" Foreground="#CCC" FontSize="12"
+                      Content="Only scan while Path of Exile is the active window"
+                      Checked="PauseWhenUnfocusedBox_Changed" Unchecked="PauseWhenUnfocusedBox_Changed"/>
+            <TextBlock Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"
+                       Text="On by default: pricing pauses when you alt-tab away and resumes when you return. Turn off to keep scanning even when the game isn't in front (uses more CPU in the background)."/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
             <CheckBox x:Name="RumourEnabledBox" Foreground="#CCC" FontSize="12"
                       Content="Enable Island Rumour helper (experimental)"
                       Checked="RumourEnabledBox_Changed" Unchecked="RumourEnabledBox_Changed"/>
@@ -139,14 +147,14 @@
                        Text="Experimental: auto-detects the Atlas rumour panel and shows ratings from a community spreadsheet. OCR can misread names and some rumours may be missing."/>
         </StackPanel>
 
-        <TextBlock Grid.Row="10" Grid.Column="0" Text="Rumour scan rate:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="10" Grid.Column="1" Orientation="Vertical" Margin="0,4">
+        <TextBlock Grid.Row="11" Grid.Column="0" Text="Rumour scan rate:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="11" Grid.Column="1" Orientation="Vertical" Margin="0,4">
             <ComboBox x:Name="RumourIntervalBox" MinWidth="160" HorizontalAlignment="Left"
                       SelectionChanged="RumourIntervalBox_SelectionChanged"/>
             <TextBlock Text="Only scans while the World map is open." Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="11" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,12,0,0">
+        <StackPanel Grid.Row="12" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,12,0,0">
             <Button x:Name="RefreshRumoursButton" Content="Refresh rumour data from sheet"
                     Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
                     FontSize="11" HorizontalAlignment="Left" Padding="10,4" Click="RefreshRumoursButton_Click"/>

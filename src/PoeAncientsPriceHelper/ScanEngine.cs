@@ -132,6 +132,12 @@ internal sealed class ScanEngine : IDisposable
         const int NoPriceCloseLimit = 3;   // ~450ms at the OCR floor before a confirmed panel is dropped
         int cycleCount = 0;
         bool paused = false;          // true while the game isn't the foreground window (no capture/OCR)
+        // Debounce for the foreground gate (#49). The game momentarily losing focus — a click on the
+        // helper's own windows, a transient activation blip — must not instantly pause and hide the
+        // overlay. We keep scanning until the game has been continuously not-foreground for this long;
+        // any foreground cycle in between resets the timer. -1 means "currently foreground".
+        long notForegroundSinceMs = -1;
+        const int ForegroundGraceMs = 1000;
         var lastOcrAt = DateTime.MinValue;
         const int MinOcrIntervalMs = 150;            // OCR floor while panel is open — Windows OCR is fast enough that 6.7/s gives sub-200ms turnaround
         const int OpenCycleMs = 120;                 // tight loop while scanning
@@ -154,25 +160,37 @@ internal sealed class ScanEngine : IDisposable
             cycleCount++;
             try
             {
-                // Pause while the game isn't the foreground window (alt-tabbed / minimised): no capture,
-                // no OCR, overlay hidden. Fail-open — when the game window can't be located we scan
-                // exactly as before, so a detection miss can never silently stop pricing.
-                if (GameWindow.TryGet(out var game) && !game.IsForeground)
+                // Pause while the game isn't the foreground window (alt-tabbed to another app): no
+                // capture, no OCR, overlay hidden. Skipped entirely when the user disables the gate
+                // (config) so pricing runs regardless of what's in front. Fail-open — when the game
+                // window can't be located we scan exactly as before, so a detection miss can never
+                // silently stop pricing. A short grace period (#49) rides out brief focus blips: we only
+                // pause after the game has been continuously not-foreground for ForegroundGraceMs.
+                if (_config.PauseWhenGameNotFocused && GameWindow.TryGet(out var game) && !game.IsForeground)
                 {
-                    if (!paused)
+                    if (notForegroundSinceMs < 0) notForegroundSinceMs = cycleStart;
+                    if (cycleStart - notForegroundSinceMs >= ForegroundGraceMs)
                     {
-                        paused = true;
-                        // Reset transient detection state so the panel re-confirms cleanly on return.
-                        slots.Clear(); lastRows = [];
-                        isOpen = false; confirmedOpen = false;
-                        brightStreak = 0; darkStreak = 0; staleCount = 0; noPriceStreak = 0;
-                        lastPushedRows = []; lastPushedConfirmed = false; lastPushedReading = false;
-                        _showing = false;
-                        PriceOverlayManager.HideNow();
-                        Log("paused (game not foreground)");
+                        if (!paused)
+                        {
+                            paused = true;
+                            // Reset transient detection state so the panel re-confirms cleanly on return.
+                            slots.Clear(); lastRows = [];
+                            isOpen = false; confirmedOpen = false;
+                            brightStreak = 0; darkStreak = 0; staleCount = 0; noPriceStreak = 0;
+                            lastPushedRows = []; lastPushedConfirmed = false; lastPushedReading = false;
+                            _showing = false;
+                            PriceOverlayManager.HideNow();
+                            Log($"paused (game not foreground) — {GameWindow.DescribeForeground()}");
+                        }
+                        try { await Task.Delay(ClosedCycleMs, ct); } catch (OperationCanceledException) { break; }
+                        continue;
                     }
-                    try { await Task.Delay(ClosedCycleMs, ct); } catch (OperationCanceledException) { break; }
-                    continue;
+                    // Within the grace window: fall through and keep scanning as normal for now.
+                }
+                else
+                {
+                    notForegroundSinceMs = -1;
                 }
                 if (paused) { paused = false; Log("resumed (game foreground)"); }
 
