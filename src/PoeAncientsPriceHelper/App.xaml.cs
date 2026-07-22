@@ -17,8 +17,24 @@ public partial class App : System.Windows.Application
     // silent on-exit apply never fired (#14).
     internal static Velopack.UpdateManager? PendingUpdateManager;
     internal static Velopack.UpdateInfo? PendingUpdate;
-    private TaskPoolGlobalHook? _hook;
-    private bool _leftCtrlDown;
+    // A single keyboard-only global hook, live for the whole session. It is deliberately NOT a
+    // keyboard+mouse hook: a global low-level mouse hook routes every mouse-move through us and stutters
+    // the cursor on high-refresh / high-polling setups (#52), and libuiohook can't reliably swap a
+    // hook's scope or restart mid-session (dispose→recreate goes deaf nondeterministically). So no mouse
+    // hook exists at all; the one thing it was used for — the Ctrl+left-click dismiss gesture — is
+    // handled by _clickWatcher instead.
+    private static TaskPoolGlobalHook? _hook;
+
+    // Poll-based Ctrl+left-click detector, active only while an overlay is on screen (the only time the
+    // dismiss gesture applies). Replaces the global mouse hook — GetAsyncKeyState is cheap and touches no
+    // hook, so there's zero cursor cost. See UpdateClickWatcher / PollClick. (#52)
+    private static readonly object _clickGate = new();
+    private static System.Threading.Timer? _clickWatcher;
+    private static bool _prevLButtonDown;
+    private const int ClickPollMs = 25;
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    private const int VK_LBUTTON = 0x01;
+    private const int VK_LCONTROL = 0xA2;
 
     // The currently-bound hotkeys, matched on every key event. MainWindow pushes the persisted values
     // once config is loaded and again on each rebind; until then the historical defaults keep working.
@@ -113,13 +129,16 @@ public partial class App : System.Windows.Application
             Console.WriteLine("[Debug] PoeAncientsPriceHelper starting");
         }
 
-        _hook = new TaskPoolGlobalHook();
+        // One keyboard-only hook for the whole session — see the field comment for why it's never a
+        // mouse hook and never swapped. TaskPoolGlobalHook (not SimpleGlobalHook): the simple hook runs
+        // handlers on the low-level-hook thread, and a handler slower than LowLevelHooksTimeout (~300ms)
+        // makes Windows silently drop the hook, which killed all hotkeys in the first #52 test build.
+        _hook = new TaskPoolGlobalHook(parallelismLevel: 1, GlobalHookType.Keyboard);
         _hook.KeyPressed += (_, ev) =>
         {
             var code = ev.Data.KeyCode;
             var mod = HotkeyBinding.ModifierOf(code);
             if (mod != Modifiers.None) _mods |= mod;   // track modifier state even during a rebind capture
-            if (code is KeyCode.VcLeftControl) _leftCtrlDown = true;
             if (_capturing) return;   // rebind in progress: swallow keys from their normal actions
             // ESC closes the in-game panel — hide the overlay the instant the key goes down.
             if (code == KeyCode.VcEscape) { DismissOverlay(); DismissRumour(); }
@@ -130,7 +149,6 @@ public partial class App : System.Windows.Application
             var mod = HotkeyBinding.ModifierOf(code);
             var heldMods = _mods;                       // modifiers held at the instant of release
             if (mod != Modifiers.None) _mods &= ~mod;   // clear the released modifier
-            if (code is KeyCode.VcLeftControl) _leftCtrlDown = false;
             // A modifier alone never triggers an action, and never completes a rebind — a chord must end
             // on a non-modifier key. `heldMods` still carries the other modifiers held with this key.
             if (mod != Modifiers.None) return;
@@ -140,20 +158,66 @@ public partial class App : System.Windows.Application
             // Act on release (not press) so holding a key can't auto-repeat-fire many times. Exact-chord
             // match: `Q` and `Ctrl+Q` are distinct and never fire each other (#46).
             var b = _bindings;
-            if (chord == b.Debug) PriceOverlayManager.ToggleDebug();
-            else if (chord == b.Calibrate) InvokeCalibrate();
-            else if (chord == b.StartStop) InvokeStartStopToggle();
+            if (chord == b.Debug) FireHotkey(chord, PriceOverlayManager.ToggleDebug);
+            else if (chord == b.Calibrate) FireHotkey(chord, InvokeCalibrate);
+            else if (chord == b.StartStop) FireHotkey(chord, InvokeStartStopToggle);
             // Debug-only one-shot rumour read (#34 spine). F8 triggers a full-screen detect + overlay;
             // the WORLD-gated auto-detect loop (#35) supersedes this manual trigger.
             else if (DebugMode && chord == new Chord(KeyCode.VcF8)) InvokeRumourScan();
         };
-        // Left-Ctrl + left click (the in-game "purchase" gesture) also dismisses the overlay.
-        _hook.MousePressed += (_, ev) =>
-        {
-            if (_capturing) return;
-            if (ev.Data.Button == MouseButton.Button1 && _leftCtrlDown) { DismissOverlay(); DismissRumour(); }
-        };
         _ = _hook.RunAsync();
+    }
+
+    // Swallows a duplicate of the SAME hotkey within a short window. Some keyboards / overlay utilities
+    // emit a key twice in quick succession, which on Start/Stop reads as an instant stop-then-restart
+    // (#52 follow-up — a tester's 360 Hz setup double-fired the default F5). Different hotkeys are
+    // unaffected. Runs on the single sequential hook thread (parallelismLevel 1), so no locking needed.
+    private const int HotkeyRepeatGuardMs = 400;
+    private static Chord _lastFiredChord;
+    private static long _lastFiredTick;
+
+    private static void FireHotkey(Chord chord, System.Action action)
+    {
+        long now = Environment.TickCount64;
+        if (chord == _lastFiredChord && now - _lastFiredTick < HotkeyRepeatGuardMs) return;
+        _lastFiredChord = chord;
+        _lastFiredTick = now;
+        action();
+    }
+
+    // Starts/stops the Ctrl+left-click watcher as overlays show/hide. Called from the scan loops on real
+    // visibility transitions (they own _showing; the hotkey hook only latches _dismissed). Runs the poll
+    // only while an overlay is on screen — the only window in which the "purchase-gesture" dismiss can
+    // apply — so normal play pays nothing. (#52)
+    internal static void UpdateClickWatcher()
+    {
+        bool wantWatch = ScanEngine.IsShowing || RumourScanEngine.IsShowing;
+        lock (_clickGate)
+        {
+            if (wantWatch && _clickWatcher is null)
+            {
+                // Seed with the current button state so a click already in progress when the overlay
+                // appears isn't counted as a fresh press.
+                _prevLButtonDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+                _clickWatcher = new System.Threading.Timer(_ => PollClick(), null, ClickPollMs, ClickPollMs);
+            }
+            else if (!wantWatch && _clickWatcher is not null)
+            {
+                _clickWatcher.Dispose();
+                _clickWatcher = null;
+            }
+        }
+    }
+
+    // Left-Ctrl + left click (the in-game "purchase" gesture) also dismisses the overlay. Edge-detected
+    // off GetAsyncKeyState so we fire once per press, not every poll. Cheap enough to run at ~40 Hz while
+    // an overlay is up; DismissOverlay/DismissRumour no-op when nothing is showing.
+    private static void PollClick()
+    {
+        bool down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        bool ctrl = (GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0;
+        if (down && !_prevLButtonDown && ctrl) { DismissOverlay(); DismissRumour(); }
+        _prevLButtonDown = down;
     }
 
     // Runs on a hook thread-pool thread. Esc cancels; a reserved key or one already bound to another
@@ -231,6 +295,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex) { AppPaths.LogUpdate($"OnExit: apply failed: {ex.GetType().Name}: {ex.Message}"); }
 
         _hook?.Dispose();
+        lock (_clickGate) { _clickWatcher?.Dispose(); _clickWatcher = null; }
         _instanceMutex?.Dispose();
         base.OnExit(e);
     }

@@ -26,7 +26,18 @@ internal sealed class RumourScanEngine : IDisposable
     // overlay hidden until the panel is gone, then clears it so a later panel shows again.
     private static volatile bool _dismissed;
     private static volatile bool _showing;
-    public static bool IsShowing => _showing;
+    // Written only by the scan loop (never the hotkey hook, which just latches _dismissed); the setter
+    // starts/stops the Ctrl+click watcher on each transition so it only polls while the overlay is up (#52).
+    public static bool IsShowing
+    {
+        get => _showing;
+        private set
+        {
+            if (_showing == value) return;
+            _showing = value;
+            App.UpdateClickWatcher();
+        }
+    }
     public static void RequestDismiss() => _dismissed = true;
 
     private const int GateIntervalMs = 1000;   // ~1 Hz WORLD-gate check (cheap, small region)
@@ -54,7 +65,7 @@ internal sealed class RumourScanEngine : IDisposable
     {
         if (IsRunning) return;
         _dismissed = false;
-        _showing = false;
+        IsShowing = false;
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         RumourDiag.Log($"=== rumour engine start ===\n{GameWindow.Describe()}");
@@ -163,7 +174,7 @@ internal sealed class RumourScanEngine : IDisposable
                         // rating under the user (#45 follow-up).
                         var stableRows = _stabilizer.Stabilize(result!.Rows);
                         RumourOverlayManager.Show(stableRows, result.PanelBounds);
-                        _showing = true;
+                        IsShowing = true;
                         missStreak = 0;
                     }
                     else if (++missStreak >= HideAfterMisses)
@@ -190,7 +201,7 @@ internal sealed class RumourScanEngine : IDisposable
         // Drop the accumulated per-row locks so a reopened panel starts fresh (mirrors the price loop
         // clearing its slots when the panel closes).
         _stabilizer.Reset();
-        if (_showing) { RumourOverlayManager.HideNow(); _showing = false; }
+        if (_showing) { RumourOverlayManager.HideNow(); IsShowing = false; }
     }
 
     // The small top-centre band where the Atlas shows the "WORLD" label, relative to the passed area —

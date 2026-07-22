@@ -29,8 +29,19 @@ internal sealed class ScanEngine : IDisposable
 
     public bool IsRunning => _loopTask is { IsCompleted: false };
 
-    // True while the overlay is actually showing a confirmed panel.
-    public static bool IsShowing => _showing;
+    // True while the overlay is actually showing a confirmed panel. Written only by the scan loop (never
+    // the hotkey hook, which just latches _dismissed); the setter starts/stops the Ctrl+click watcher on
+    // each transition so it only polls while the overlay is up (#52).
+    public static bool IsShowing
+    {
+        get => _showing;
+        private set
+        {
+            if (_showing == value) return;
+            _showing = value;
+            App.UpdateClickWatcher();
+        }
+    }
 
     // ESC / Left-Ctrl+click: hide the overlay and keep it hidden until the panel actually closes
     // (ESC closes the panel, so it clears fast; Ctrl+click leaves the panel open, so it stays
@@ -55,7 +66,7 @@ internal sealed class ScanEngine : IDisposable
         // Reset shared static flags so a stale loop (e.g. one that timed out in StopAndWait)
         // can't clobber the new instance's dismiss/show state.
         _dismissed = false;
-        _showing = false;
+        IsShowing = false;
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         _loopTask = Task.Run(() => RunLoopAsync(_cts.Token));
@@ -122,6 +133,8 @@ internal sealed class ScanEngine : IDisposable
         HashSet<string> dismissedNames = new(StringComparer.Ordinal);
         int dismissNoPrice = 0;       // consecutive dismissed passes with no priced row (or dark) — panel gone
         int dismissDiffStreak = 0;    // consecutive dismissed passes showing an item not in dismissedNames — new panel
+        DateTime dismissStartedAt = DateTime.UtcNow;   // when the current dismiss latch began — absolute-ceiling clock
+        DateTime dismissPanelSeenAt = DateTime.UtcNow; // last pass that still saw the dismissed panel — stall clock
         int staleCount = 0;           // consecutive 0-row OCR passes — clears stale overlay on loading screens
         const int StaleLimit = 10;    // consecutive 0-row OCR passes before clearing (~800ms at 80ms interval)
         // Consecutive OCR passes (whether 0-row or rows that didn't resolve) with NO priced row while
@@ -143,6 +156,13 @@ internal sealed class ScanEngine : IDisposable
         const int OpenCycleMs = 120;                 // tight loop while scanning
         const int ClosedCycleMs = 300;               // polling while watching for the panel — halves idle capture cost
         const int DarkToRelease = 3;                 // dark frames before a dismiss latch releases
+        // Two backstops so a dismiss latch can never stick forever, WITHOUT cutting a dismiss short while
+        // the user is still working in the panel they dismissed (#52 follow-up). Ctrl+click deliberately
+        // keeps the overlay hidden for as long as that panel is up, so the stall clock is reset on every
+        // pass that still sees it — it only runs down once the panel stops being recognised. The ceiling
+        // never resets and exists purely so no latch can outlive the session.
+        const int DismissStallMs = 5000;             // no sighting of the dismissed panel for this long ⇒ release
+        const int DismissMaxHoldMs = 60000;          // absolute ceiling on a single dismiss latch
         // Asymmetric brightness hysteresis. A frame counts toward OPENING only above OpenBrightness and
         // toward CLOSING only below CloseBrightness; readings in the [80,100] dead zone hold the current
         // state so brightness hovering at the boundary can't flicker the overlay. OpenBrightness stays
@@ -179,7 +199,7 @@ internal sealed class ScanEngine : IDisposable
                             isOpen = false; confirmedOpen = false;
                             brightStreak = 0; darkStreak = 0; staleCount = 0; noPriceStreak = 0;
                             lastPushedRows = []; lastPushedConfirmed = false; lastPushedReading = false;
-                            _showing = false;
+                            IsShowing = false;
                             PriceOverlayManager.HideNow();
                             Log($"paused (game not foreground) — {GameWindow.DescribeForeground()}");
                         }
@@ -215,14 +235,31 @@ internal sealed class ScanEngine : IDisposable
                             lastRows.Where(r => r.HasPrice).Select(r => r.Name), StringComparer.Ordinal);
                         dismissNoPrice = 0;
                         dismissDiffStreak = 0;
+                        dismissStartedAt = DateTime.UtcNow;
+                        dismissPanelSeenAt = dismissStartedAt;
                     }
                     wasDismissed = true;
+
+                    // Backstops (see the constants). The stall clock is reset below on every pass that
+                    // still recognises the dismissed panel, so holding that panel open keeps the overlay
+                    // hidden exactly as intended; these only fire once it stops being seen (or, for the
+                    // ceiling, after an implausibly long single dismiss).
+                    var sinceSeen = (DateTime.UtcNow - dismissPanelSeenAt).TotalMilliseconds;
+                    var sinceStart = (DateTime.UtcNow - dismissStartedAt).TotalMilliseconds;
+                    if (sinceSeen >= DismissStallMs || sinceStart >= DismissMaxHoldMs)
+                    {
+                        _dismissed = false; wasDismissed = false;
+                        suppressHintUntilConfirm = true;
+                        Log(sinceSeen >= DismissStallMs
+                            ? $"dismiss released (panel not seen for {sinceSeen:F0}ms)"
+                            : $"dismiss released (max hold {sinceStart:F0}ms elapsed)");
+                    }
 
                     isOpen = false; confirmedOpen = false; brightStreak = 0; darkStreak = 0;
                     slots.Clear(); lastRows = [];
                     staleCount = 0;
                     noPriceStreak = 0;
-                    _showing = false;
+                    IsShowing = false;
                     // Always push when dismissed to clear the overlay, and reset the change-tracker
                     // so the next real state is treated as new.
                     PriceOverlayManager.UpdateState([], false, false);
@@ -277,9 +314,12 @@ internal sealed class ScanEngine : IDisposable
                             }
                             else
                             {
-                                // Same items as when dismissed — still that panel; keep it hidden.
+                                // Same items as when dismissed — still that panel; keep it hidden. This is
+                                // the Ctrl+click "I'm buying, stay out of the way" case, so hold the stall
+                                // clock off for as long as the panel keeps being recognised.
                                 dismissNoPrice = 0;
                                 dismissDiffStreak = 0;
+                                dismissPanelSeenAt = DateTime.UtcNow;
                             }
                         }
                     }
@@ -317,7 +357,7 @@ internal sealed class ScanEngine : IDisposable
                         // confirms, so showing the hint here is exactly the post-ESC flicker.
                         if (isOpen && !suppressHintUntilConfirm)
                         {
-                            _showing = false;
+                            IsShowing = false;
                             PriceOverlayManager.UpdateState([], false, true);
                         }
                     }
@@ -413,7 +453,7 @@ internal sealed class ScanEngine : IDisposable
                     bool reading = isOpen && !confirmedOpen && !suppressHintUntilConfirm;
 
                     // Show prices only once OCR has confirmed a real list, not on brightness alone.
-                    _showing = confirmedOpen;
+                    IsShowing = confirmedOpen;
                     // Skip the cross-thread UpdateState when nothing actually changed since the last
                     // push — the loop ticks far faster than the displayed rows move. The HUD is derived
                     // from lastRows, so it can't change without the rows changing — no extra push gate.
@@ -447,7 +487,7 @@ internal sealed class ScanEngine : IDisposable
             }
         }
 
-        _showing = false;
+        IsShowing = false;
         PriceOverlayManager.Hide();
         Log("loop exited");
     }
