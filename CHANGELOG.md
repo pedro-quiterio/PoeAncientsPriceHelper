@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.7.1] — 2026-07-19
+
+### Fixed
+
+- **Mouse cursor no longer stutters while the tool runs.** On high-refresh / high-polling-rate setups
+  (e.g. a 360 Hz monitor with a 1000 Hz mouse) the global input hook routed every mouse-move through the
+  app and allocated per event, triggering frequent GC pauses that hitched the system cursor once or
+  twice a second — and the hitching continued after "Stop" until the app was fully closed. The tool no
+  longer installs a global mouse hook at all: the hook is keyboard-only, and the Left-Ctrl+click "dismiss
+  overlay" gesture is now detected by a lightweight check that runs only while an overlay is on screen.
+  Hotkeys, rebinding, Esc-to-dismiss and the Ctrl+click gesture are unchanged. (#52)
+- **A hotkey pressed twice in quick succession no longer fires twice.** Some keyboards and overlay
+  utilities emit a key press more than once; on Start/Stop that read as an instant stop-then-restart. A
+  repeat of the same hotkey within a fraction of a second is now ignored. (#52)
+- **The overlay can no longer get stuck hidden after a Ctrl+click dismiss.** Ctrl+click leaves the
+  in-game panel open, and if the tool couldn't cleanly detect that panel later closing, the overlay
+  stayed hidden until you toggled Start/Stop. It now always reappears once the panel is gone. (#52)
+
 ## [3.7.0] — 2026-07-11
 
 ### Added
