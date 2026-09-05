@@ -123,6 +123,7 @@ public class PriceRepositoryTests
     [Theory]
     [InlineData("Runes of Aldur", "league=Runes%20of%20Aldur&", "/economy/runesofaldur/")]
     [InlineData("HC Runes of Aldur", "league=HC%20Runes%20of%20Aldur&", "/economy/hcrunesofaldur/")]
+    [InlineData("Forbidden Rites", "league=Forbidden%20Rites&", "/economy/forbiddenrites/")]
     public async Task LeagueName_DrivesApiParamAndReferer(string league, string expectedParam, string expectedSlug)
     {
         var handler = new CapturingFakeHttpHandler(FakeApiResponse);

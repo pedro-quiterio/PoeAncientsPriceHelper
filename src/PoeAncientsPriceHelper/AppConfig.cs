@@ -12,7 +12,8 @@ internal sealed class AppConfig
     // data — persisting it makes Newtonsoft APPEND the saved list onto this default on load
     // (ObjectCreationHandling.Auto), duplicating every entry. Keep it code-only.
     [JsonIgnore]
-    public List<string> AvailableLeagues { get; set; } = ["Runes of Aldur", "HC Runes of Aldur"];
+    public List<string> AvailableLeagues { get; set; } =
+        ["Runes of Aldur", "HC Runes of Aldur", "Forbidden Rites", "HC Forbidden Rites"];
     public int RegionX { get; set; } = 0;
     public int RegionY { get; set; } = 0;
     public int RegionWidth { get; set; } = 0;
