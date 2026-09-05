@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-09-05
+
+### Added
+
+- **Forbidden Rites league support.** The event league that launched with patch 0.5.5 and its Hardcore
+  counterpart are now selectable in the League dropdown, alongside Runes of Aldur. Prices for both are
+  live on poe.ninja across all five exchange categories the tool reads. Runes of Aldur stays the
+  default, and your saved league choice is untouched.
+
 ## [3.7.1] — 2026-07-19
 
 ### Fixed
