@@ -22,7 +22,11 @@ stack is worth.
   kept**. See [How updates work](#how-updates-work).
 - **Click-through overlay** that never gets in the way of the game.
 - **One-time calibration** — just drag a box around the in-game list panel.
-- **Hotkeys:** `F5` start/stop · `F4` recalibrate · `F3` debug boxes · `Esc` / `Ctrl+Click` hide.
+- **🔔 Ritual chime (experimental)** — watches a small calibrated region for the ritual tribute
+  counter (`N/M`, e.g. `4/4`) and plays a one-time chime the moment it fills, so you know a ritual is
+  ready without watching the number. Set the region with `F6`, and pick your own `.wav`/`.mp3` in
+  **Settings** if you'd rather use a custom sound. On by default.
+- **Hotkeys:** `F5` start/stop · `F4` recalibrate · `F6` set ritual region · `F3` debug boxes · `Esc` / `Ctrl+Click` hide.
 - **Minimize to tray** — scanning keeps running in the background.
 - **🎨 Theme switcher** — 5 dark themes (Toxic, Midnight, Obsidian, Abyss, Ember). Defaults to
   **Toxic** — its dark green gradient complements the green Start button while keeping the same

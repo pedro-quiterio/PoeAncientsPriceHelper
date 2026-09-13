@@ -104,6 +104,21 @@
   </figure>
   <div class="note">You only need this if auto-detect can’t read the label on your setup. The region is stored in fixed screen coordinates, so re-set it (or switch auto-detect back on) if you move the game window or change resolution.</div>
 
+  <h2>Ritual chime</h2>
+  <p>Rituals only open once the tribute counter is full — <code>3/3</code>, <code>4/4</code>, <code>6/6</code> and so on. With the <strong>ritual chime</strong> enabled (in <strong>Settings</strong>, on by default), the app watches a small region of your screen for that counter and plays a <strong>one-time chime</strong> the moment it fills, so you can keep fighting and know the instant the ritual is ready without watching the number.</p>
+  <p>First, tell the app where the counter is:</p>
+  <ol>
+    <li>Press <kbd>F6</kbd> (or click <strong>“Set ritual area…”</strong> in <strong>Settings</strong>).</li>
+    <li>Your screen dims. <strong>Drag a box around the counter</strong> (the <code>N/M</code> number, e.g. <code>4/4</code>).</li>
+    <li>Press <kbd>ENTER</kbd> to confirm (or <kbd>ESC</kbd> to cancel and try again).</li>
+  </ol>
+  <figure>
+    <img src="ritual.png" alt="Dragging a box around the ritual N/M tribute counter during calibration">
+    <figcaption>Drag a box around the ritual counter (e.g. <code>4/4</code>), then press ENTER to confirm.</figcaption>
+  </figure>
+  <p>The chime fires once per ritual: it arms when the counter opens at <code>0/M</code> and rings when it reaches <code>N/M</code> full. It won’t ring again for the same ritual — only when the next one starts fresh. Prefer your own sound? In <strong>Settings</strong>, use <strong>Browse…</strong> next to <em>Chime sound</em> to pick any <code>.wav</code> or <code>.mp3</code> (there’s a <strong>Test</strong> button to preview it, and <strong>Use default</strong> to go back to the built-in chime).</p>
+  <div class="note">The region is stored in fixed screen coordinates, so re-set it with <kbd>F6</kbd> if you move the game window or change resolution. <kbd>F6</kbd> is rebindable in <strong>Settings</strong>, alongside the other hotkeys.</div>
+
   <h2>Update notifications</h2>
   <p>When the app starts it quietly checks GitHub for a newer release. If one is available, a red <strong>“Update available”</strong> link appears at the bottom of the window — click it to open the download page. If you’re offline or already up to date, nothing happens and no link is shown.</p>
 
@@ -111,6 +126,7 @@
   <table>
     <tr><th>Key</th><th>Action</th></tr>
     <tr><td><kbd>F4</kbd></td><td>Recalibrate the panel region</td></tr>
+    <tr><td><kbd>F6</kbd></td><td>Set the ritual counter region (for the ritual chime) — <strong>rebindable</strong></td></tr>
     <tr><td><kbd>F5</kbd> <em>(default)</em></td><td>Start / stop scanning — <strong>rebindable</strong> (see below)</td></tr>
     <tr><td><kbd>F3</kbd></td><td>Toggle debug boxes (shows the scanned region + per-row boxes)</td></tr>
     <tr><td><kbd>ESC</kbd></td><td>Hide the overlay (also fires when you close the panel)</td></tr>
@@ -136,7 +152,7 @@
     <li>Click the <strong>Diagnostics</strong> link at the bottom of the app window — it restarts the app with logging on (a console window opens alongside it).</li>
     <li>Reproduce the problem (calibrate, open the panel, open the Atlas, press <kbd>F3</kbd>, etc.).</li>
     <li>Close the app, then click <strong>Diagnostics</strong> again (now labelled <em>Open logs</em>) to open your data folder.</li>
-    <li>Attach <code>scan_log.txt</code> (prices) and/or <code>rumour_scan.txt</code> (rumours), plus a screenshot of what you saw, to your GitHub issue.</li>
+    <li>Attach <code>scan_log.txt</code> (prices), <code>rumour_scan.txt</code> (rumours) and/or <code>ritual_scan.txt</code> (ritual chime), plus a screenshot of what you saw, to your GitHub issue.</li>
   </ol>
   <div class="note">Debug mode is the same app with extra logging — it’s safe to use normally.</div>
 
