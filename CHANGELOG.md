@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.10.0] — 2026-09-13
+
+### Added
+
+- **Ritual chime.** The app can now watch a small region of your screen for the ritual tribute counter
+  (`N/M`, e.g. `4/4`) and play a one-time chime the moment it fills, so you know a ritual is ready to
+  open without watching the number. Set the region with **F6** (rebindable) or the **Set ritual area…**
+  button in Settings — drag a box over the counter, press ENTER — and it reads it live. The chime arms
+  when the counter opens at `0/M` and rings once when it reaches full; it won't ring again for the same
+  ritual, only when the next one starts fresh. A pleasant default chime ships built-in, and you can pick
+  any `.wav` or `.mp3` of your own in Settings (with a Test button to preview it). On by default.
+
 ## [3.9.0] — 2026-09-13
 
 ### Added
