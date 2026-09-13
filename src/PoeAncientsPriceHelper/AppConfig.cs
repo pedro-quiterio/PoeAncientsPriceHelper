@@ -8,12 +8,15 @@ internal sealed class AppConfig
     public string LeagueName { get; set; } = "Runes of Aldur";
     // Leagues offered in the settings dropdown. Add more here as new leagues launch.
     // The string is used verbatim as poe.ninja's API league param, so "HC Runes of Aldur" is the
-    // Hardcore variant of "Runes of Aldur". [JsonIgnore]: this is an app-defined constant, not user
-    // data — persisting it makes Newtonsoft APPEND the saved list onto this default on load
-    // (ObjectCreationHandling.Auto), duplicating every entry. Keep it code-only.
+    // Hardcore variant of "Runes of Aldur". "Standard" is the permanent league, added for players not
+    // on a temp league (#59) — poe.ninja returns real exchange data for it. (Permanent "Hardcore" is
+    // deliberately omitted: poe.ninja carries no exchange data for it, so it would only ever price
+    // blank.) [JsonIgnore]: this is an app-defined constant, not user data — persisting it makes
+    // Newtonsoft APPEND the saved list onto this default on load (ObjectCreationHandling.Auto),
+    // duplicating every entry. Keep it code-only.
     [JsonIgnore]
     public List<string> AvailableLeagues { get; set; } =
-        ["Runes of Aldur", "HC Runes of Aldur", "Forbidden Rites", "HC Forbidden Rites"];
+        ["Runes of Aldur", "HC Runes of Aldur", "Forbidden Rites", "HC Forbidden Rites", "Standard"];
     public int RegionX { get; set; } = 0;
     public int RegionY { get; set; } = 0;
     public int RegionWidth { get; set; } = 0;

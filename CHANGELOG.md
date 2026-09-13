@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.9.0] — 2026-09-13
+
+### Added
+
+- **Standard league support.** The permanent Standard league is now selectable in the League dropdown,
+  for players who aren't on a temporary/event league (#59). Prices come live from poe.ninja like the
+  other leagues. Your saved league choice is untouched. (Permanent Hardcore is intentionally not
+  offered — poe.ninja carries no exchange data for it, so it would only ever show blank prices.)
+
 ## [3.8.0] — 2026-09-05
 
 ### Added
