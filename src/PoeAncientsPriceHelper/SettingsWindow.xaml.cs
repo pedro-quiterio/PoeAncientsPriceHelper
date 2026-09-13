@@ -17,6 +17,9 @@ public partial class SettingsWindow : Window
     private readonly AppConfig _config;
     private readonly Func<Task<RumourRefreshResult>>? _refreshRumours;
     private bool _loading;
+    // Lazily-created chime player for the "Test" button, so the user can preview the current selection
+    // without staging a real ritual. Disposed when the window closes.
+    private RitualChime? _testChime;
 
     // internal: takes the internal AppConfig and is only ever constructed from MainWindow. The optional
     // callback performs a rumour-sheet refresh (owned by MainWindow, which holds the scanner).
@@ -35,6 +38,7 @@ public partial class SettingsWindow : Window
         HotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.StartStopHotkey));
         DebugHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.DebugHotkey));
         CalibrateHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.CalibrateHotkey));
+        RitualHotkeyLabel.Text = HotkeyBinding.Display(HotkeyBinding.ParseChord(_config.RitualCalibrateHotkey));
 
         ThemeBox.ItemsSource = ThemePresets.Names;
         ThemeBox.SelectedItem = ThemePresets.Resolve(_config.Theme);
@@ -78,7 +82,22 @@ public partial class SettingsWindow : Window
         RumourAutoWorldBox.IsChecked = _config.RumourWorldAutoDetect;
         UpdateWorldRegionUi();
 
+        // Ritual chime helper (test branch).
+        RitualEnabledBox.IsChecked = _config.RitualHelperEnabled;
+        UpdateRitualUi();
+
         _loading = false;
+    }
+
+    // Reflect the calibrated ritual region and the chosen chime file (bundled default when unset).
+    private void UpdateRitualUi()
+    {
+        RitualRegionLabel.Text = _config.IsRitualCalibrated
+            ? $"Region: x={_config.RitualRegionX} y={_config.RitualRegionY} {_config.RitualRegionWidth}×{_config.RitualRegionHeight}"
+            : "No region set yet — click “Set ritual area…” and drag a box over the counter.";
+        RitualChimeLabel.Text = string.IsNullOrWhiteSpace(_config.RitualChimePath)
+            ? "Using the bundled default chime."
+            : $"Custom: {_config.RitualChimePath}";
     }
 
     // Reflect the current auto-detect / manual-region state: the "Set WORLD region" button is only
@@ -227,6 +246,74 @@ public partial class SettingsWindow : Window
         }
     }
 
+    // ---- Ritual chime helper (test branch) ----
+
+    // Read live by the running loop, so toggling takes effect within a tick — no restart.
+    private void RitualEnabledBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _config.RitualHelperEnabled = RitualEnabledBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
+
+    // Drag a box over the ritual counter. Reuses the price calibration overlay (full-desktop snapshot,
+    // absolute-pixel result). The settings window is hidden during the pick so it can't cover the game;
+    // the running loop reads the saved region live.
+    private void SetRitualRegionButton_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+        System.Drawing.Rectangle? rect;
+        try
+        {
+            rect = CalibrationOverlay.RunOnStaThread(
+                "Drag a box around the ritual counter (e.g. \"4/4\"), then press ENTER to confirm. ESC to cancel.");
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+        if (rect is null) return;
+        _config.RitualRegionRect = rect.Value;
+        ConfigStore.Save(_config);
+        UpdateRitualUi();
+    }
+
+    private void BrowseChimeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose a ritual chime sound",
+            Filter = "Audio files (*.wav;*.mp3;*.wma)|*.wav;*.mp3;*.wma|All files (*.*)|*.*",
+            CheckFileExists = true,
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        _config.RitualChimePath = dlg.FileName;
+        ConfigStore.Save(_config);
+        UpdateRitualUi();
+    }
+
+    private void ResetChimeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _config.RitualChimePath = "";
+        ConfigStore.Save(_config);
+        UpdateRitualUi();
+    }
+
+    // Preview the current selection (custom file, or the bundled default when unset). Falls back to the
+    // bundled chime if the custom file is missing — the same resolution the live loop uses.
+    private void TestChimeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _testChime ??= new RitualChime(() => _config.RitualChimePath);
+        _testChime.Play();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _testChime?.Dispose();
+        base.OnClosed(e);
+    }
+
     // ---- Hotkey rebinding (moved verbatim from MainWindow; one capture at a time) ----
 
     private HotkeyBinding.Action _rebindAction;
@@ -241,6 +328,9 @@ public partial class SettingsWindow : Window
 
     private void RebindCalibrateButton_Click(object sender, RoutedEventArgs e) =>
         BeginRebind(HotkeyBinding.Action.Calibrate, RebindCalibrateButton, CalibrateHotkeyLabel);
+
+    private void RebindRitualButton_Click(object sender, RoutedEventArgs e) =>
+        BeginRebind(HotkeyBinding.Action.RitualCalibrate, RebindRitualButton, RitualHotkeyLabel);
 
     private void BeginRebind(HotkeyBinding.Action action, Button button, TextBlock label)
     {
@@ -271,6 +361,10 @@ public partial class SettingsWindow : Window
                         _config.CalibrateHotkey = HotkeyBinding.ToStorage(chord);
                         App.SetCalibrateChord(chord);
                         break;
+                    case HotkeyBinding.Action.RitualCalibrate:
+                        _config.RitualCalibrateHotkey = HotkeyBinding.ToStorage(chord);
+                        App.SetRitualCalibrateChord(chord);
+                        break;
                 }
                 ConfigStore.Save(_config);
                 if (_rebindLabel is not null) _rebindLabel.Text = HotkeyBinding.Display(chord);
@@ -299,5 +393,6 @@ public partial class SettingsWindow : Window
         RebindButton.IsEnabled = enabled;
         RebindDebugButton.IsEnabled = enabled;
         RebindCalibrateButton.IsEnabled = enabled;
+        RebindRitualButton.IsEnabled = enabled;
     }
 }

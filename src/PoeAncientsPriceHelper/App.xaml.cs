@@ -41,12 +41,14 @@ public partial class App : System.Windows.Application
     // Held as one immutable record behind a single volatile reference so the hook thread always reads a
     // consistent set (a Chord is a two-field struct — it can't be `volatile` and a plain field could tear
     // across threads). Writers are UI-thread only, so the read-modify-write in the setters can't race.
-    private sealed record HotkeyBindings(Chord StartStop, Chord Debug, Chord Calibrate);
+    private sealed record HotkeyBindings(Chord StartStop, Chord Debug, Chord Calibrate, Chord RitualCalibrate);
     private static volatile HotkeyBindings _bindings = new(
-        HotkeyBinding.DefaultStartStop, HotkeyBinding.DefaultDebug, HotkeyBinding.DefaultCalibrate);
+        HotkeyBinding.DefaultStartStop, HotkeyBinding.DefaultDebug, HotkeyBinding.DefaultCalibrate,
+        HotkeyBinding.DefaultRitualCalibrate);
     internal static void SetStartStopChord(Chord chord) => _bindings = _bindings with { StartStop = chord };
     internal static void SetDebugChord(Chord chord) => _bindings = _bindings with { Debug = chord };
     internal static void SetCalibrateChord(Chord chord) => _bindings = _bindings with { Calibrate = chord };
+    internal static void SetRitualCalibrateChord(Chord chord) => _bindings = _bindings with { RitualCalibrate = chord };
 
     // Live modifier state, updated as modifier keys go down/up so a key release can be matched as a full
     // chord (#46). Enum with an int base ⇒ safe to mark volatile for the hook thread.
@@ -160,6 +162,7 @@ public partial class App : System.Windows.Application
             var b = _bindings;
             if (chord == b.Debug) FireHotkey(chord, PriceOverlayManager.ToggleDebug);
             else if (chord == b.Calibrate) FireHotkey(chord, InvokeCalibrate);
+            else if (chord == b.RitualCalibrate) FireHotkey(chord, InvokeRitualCalibrate);
             else if (chord == b.StartStop) FireHotkey(chord, InvokeStartStopToggle);
             // Debug-only one-shot rumour read (#34 spine). F8 triggers a full-screen detect + overlay;
             // the WORLD-gated auto-detect loop (#35) supersedes this manual trigger.
@@ -244,6 +247,7 @@ public partial class App : System.Windows.Application
         if (target != HotkeyBinding.Action.StartStop && chord == b.StartStop) return true;
         if (target != HotkeyBinding.Action.Debug && chord == b.Debug) return true;
         if (target != HotkeyBinding.Action.Calibrate && chord == b.Calibrate) return true;
+        if (target != HotkeyBinding.Action.RitualCalibrate && chord == b.RitualCalibrate) return true;
         return false;
     }
 
@@ -269,6 +273,9 @@ public partial class App : System.Windows.Application
 
     private static void InvokeCalibrate() =>
         Current?.Dispatcher.BeginInvoke(() => (Current.MainWindow as MainWindow)?.RunCalibration());
+
+    private static void InvokeRitualCalibrate() =>
+        Current?.Dispatcher.BeginInvoke(() => (Current.MainWindow as MainWindow)?.RunRitualCalibration());
 
     private static void InvokeRumourScan() =>
         Current?.Dispatcher.BeginInvoke(() => (Current.MainWindow as MainWindow)?.RunRumourScanOnce());

@@ -21,11 +21,12 @@ internal static class HotkeyBinding
     // The three rebindable actions. Used to tell capture which binding it's replacing so it can reject
     // a chord already taken by one of the *other two* (a collision check that lives in App, where the
     // current bindings are held).
-    public enum Action { StartStop, Debug, Calibrate }
+    public enum Action { StartStop, Debug, Calibrate, RitualCalibrate }
 
     public static readonly Chord DefaultStartStop = new(KeyCode.VcF5);
     public static readonly Chord DefaultDebug = new(KeyCode.VcF3);
     public static readonly Chord DefaultCalibrate = new(KeyCode.VcF4);
+    public static readonly Chord DefaultRitualCalibrate = new(KeyCode.VcF6);
     public static readonly Chord Default = DefaultStartStop;
 
     // Keys hard-wired to fixed gestures that mirror in-game actions (Esc closes the panel, L/R-Ctrl is

@@ -68,6 +68,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="140"/>
@@ -104,34 +106,43 @@
                     FontSize="11" Padding="10,2" Click="RebindCalibrateButton_Click"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Theme:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="ThemeBox" Margin="0,4" MinWidth="120"
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Ritual area key:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+            <TextBlock x:Name="RitualHotkeyLabel" Text="F6" VerticalAlignment="Center"
+                       FontFamily="Consolas" FontSize="12" MinWidth="46"/>
+            <Button x:Name="RebindRitualButton" Content="Rebind" Style="{StaticResource FlatButton}"
+                    Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                    FontSize="11" Padding="10,2" Click="RebindRitualButton_Click"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Theme:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <ComboBox Grid.Row="5" Grid.Column="1" x:Name="ThemeBox" Margin="0,4" MinWidth="120"
                   HorizontalAlignment="Left" SelectionChanged="ThemeBox_SelectionChanged"/>
 
-        <TextBlock Grid.Row="5" Grid.Column="0" Text="Capture mode:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Vertical" Margin="0,4">
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Capture mode:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Vertical" Margin="0,4">
             <ComboBox x:Name="CaptureBox" MinWidth="160" HorizontalAlignment="Left"
                       SelectionChanged="CaptureBox_SelectionChanged"/>
             <TextBlock Text="(applies on next start)" Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="6" Grid.Column="0" Text="Game language:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Vertical" Margin="0,4">
+        <TextBlock Grid.Row="7" Grid.Column="0" Text="Game language:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Vertical" Margin="0,4">
             <ComboBox x:Name="LanguageBox" MinWidth="160" HorizontalAlignment="Left"
                       SelectionChanged="LanguageBox_SelectionChanged"/>
             <TextBlock Text="Match your PoE 2 client language so item names are priced. (applies on next start)"
                        Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <CheckBox Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" x:Name="AutoStartBox"
+        <CheckBox Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" x:Name="AutoStartBox"
                   Margin="0,12,0,0" Foreground="#CCC" FontSize="12"
                   Content="Auto-start scanning and minimize to tray on launch"
                   Checked="AutoStartBox_Changed" Unchecked="AutoStartBox_Changed"/>
-        <TextBlock Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Top"
+        <TextBlock Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Top"
                    Text="Only applies once a region is calibrated. Just open the app and it starts in the tray."
                    Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
 
-        <StackPanel Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
+        <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
             <CheckBox x:Name="PauseWhenUnfocusedBox" Foreground="#CCC" FontSize="12"
                       Content="Only scan while Path of Exile is the active window"
                       Checked="PauseWhenUnfocusedBox_Changed" Unchecked="PauseWhenUnfocusedBox_Changed"/>
@@ -139,7 +150,7 @@
                        Text="On by default: pricing pauses when you alt-tab away and resumes when you return. Turn off to keep scanning even when the game isn't in front (uses more CPU in the background)."/>
         </StackPanel>
 
-        <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
+        <StackPanel Grid.Row="11" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
             <CheckBox x:Name="RumourEnabledBox" Foreground="#CCC" FontSize="12"
                       Content="Enable Island Rumour helper (experimental)"
                       Checked="RumourEnabledBox_Changed" Unchecked="RumourEnabledBox_Changed"/>
@@ -147,14 +158,14 @@
                        Text="Experimental: auto-detects the Atlas rumour panel and shows ratings from a community spreadsheet. OCR can misread names and some rumours may be missing."/>
         </StackPanel>
 
-        <TextBlock Grid.Row="11" Grid.Column="0" Text="Rumour scan rate:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
-        <StackPanel Grid.Row="11" Grid.Column="1" Orientation="Vertical" Margin="0,4">
+        <TextBlock Grid.Row="12" Grid.Column="0" Text="Rumour scan rate:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Vertical" Margin="0,4">
             <ComboBox x:Name="RumourIntervalBox" MinWidth="160" HorizontalAlignment="Left"
                       SelectionChanged="RumourIntervalBox_SelectionChanged"/>
             <TextBlock Text="Only scans while the World map is open." Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="12" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,12,0,0">
+        <StackPanel Grid.Row="13" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,12,0,0">
             <Button x:Name="RefreshRumoursButton" Content="Refresh rumour data from sheet"
                     Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
                     FontSize="11" HorizontalAlignment="Left" Padding="10,4" Click="RefreshRumoursButton_Click"/>
@@ -174,6 +185,37 @@
                     Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
                     FontSize="11" HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0" Click="SetWorldRegionButton_Click"/>
             <TextBlock x:Name="WorldRegionLabel" Text="" Foreground="#888" FontSize="10"
+                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Ritual chime helper (test branch): enable + region + chime file. -->
+        <StackPanel Grid.Row="14" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,14,0,0">
+            <Border Height="1" Background="#2A2A2A" Margin="0,0,0,10"/>
+            <CheckBox x:Name="RitualEnabledBox" Foreground="#CCC" FontSize="12"
+                      Content="Enable ritual chime (experimental)"
+                      Checked="RitualEnabledBox_Changed" Unchecked="RitualEnabledBox_Changed"/>
+            <TextBlock Foreground="#888" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"
+                       Text="Watches a screen region for the ritual tribute counter (e.g. 4/4) and plays a chime once when it fills. Calibrate the region over the counter first (F6 or the button below)."/>
+
+            <Button x:Name="SetRitualRegionButton" Content="Set ritual area…"
+                    Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                    FontSize="11" HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0" Click="SetRitualRegionButton_Click"/>
+            <TextBlock x:Name="RitualRegionLabel" Text="" Foreground="#888" FontSize="10"
+                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+            <TextBlock Text="Chime sound:" Style="{StaticResource FieldLabel}" Margin="0,10,0,2"/>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="BrowseChimeButton" Content="Browse…"
+                        Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                        FontSize="11" Padding="10,4" Click="BrowseChimeButton_Click"/>
+                <Button x:Name="TestChimeButton" Content="Test"
+                        Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                        FontSize="11" Padding="14,4" Margin="6,0,0,0" Click="TestChimeButton_Click"/>
+                <Button x:Name="ResetChimeButton" Content="Use default"
+                        Style="{StaticResource FlatButton}" Background="#2A2A2A" Foreground="#CCC" BorderBrush="#444"
+                        FontSize="11" Padding="10,4" Margin="6,0,0,0" Click="ResetChimeButton_Click"/>
+            </StackPanel>
+            <TextBlock x:Name="RitualChimeLabel" Text="" Foreground="#888" FontSize="10"
                        Margin="0,4,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </Grid>

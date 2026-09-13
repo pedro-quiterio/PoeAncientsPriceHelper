@@ -50,6 +50,14 @@
     </Content>
   </ItemGroup>
 
+  <!-- Bundled default ritual chime (test branch), copied next to the exe under assets\. RitualChime
+       falls back to this when no custom chime is configured or the custom file is missing. -->
+  <ItemGroup>
+    <Content Include="assets\ritual_chime.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- In-app HTML guide (opened by the Help button) + its images, shipped next to the exe under docs\.
        MainWindow.HelpButton_Click opens docs\README.html from AppContext.BaseDirectory. -->
   <ItemGroup>

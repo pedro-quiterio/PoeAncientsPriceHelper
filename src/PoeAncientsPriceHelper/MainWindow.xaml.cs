@@ -20,6 +20,12 @@ public partial class MainWindow : Window
     private RumourScanner? _rumourScanner;
     private IScreenCaptureBackend? _rumourCapture;
     private RumourScanEngine? _rumourEngine;
+    // Ritual chime helper (test branch): a dedicated capture backend + scanner, the always-watching
+    // counter loop, and the chime player. Created once on load, independent of the price repo/icons.
+    private RitualScanner? _ritualScanner;
+    private IScreenCaptureBackend? _ritualCapture;
+    private RitualScanEngine? _ritualEngine;
+    private RitualChime? _ritualChime;
     // 15s cap so a stalled poe.ninja/poecdn connection can't hang a whole fetch cycle for the
     // default 100s. Per-fetch cancellation (shutdown) is handled inside PriceRepository.
     // HTTP/2 + compression enabled for faster parallel fetches (5 concurrent requests multiplexed
@@ -76,6 +82,7 @@ public partial class MainWindow : Window
         }
         await StartupAsync();
         InitRumourHelper();
+        InitRitualHelper();
         // Auto-start QoL: with a calibrated region and the option enabled, begin scanning and drop
         // straight to the tray, so the user just opens the app and it runs (saving the Start + minimize
         // clicks). Skipped under --debug (keep the window and console visible for troubleshooting) and
@@ -242,6 +249,7 @@ public partial class MainWindow : Window
         App.SetStartStopChord(HotkeyBinding.ParseChord(_config.StartStopHotkey));
         App.SetDebugChord(HotkeyBinding.ParseChord(_config.DebugHotkey));
         App.SetCalibrateChord(HotkeyBinding.ParseChord(_config.CalibrateHotkey));
+        App.SetRitualCalibrateChord(HotkeyBinding.ParseChord(_config.RitualCalibrateHotkey));
         UpdateRegionLabel();
         ThemePresets.Apply(ThemePresets.Resolve(_config.Theme));
         _loading = false;
@@ -432,6 +440,35 @@ public partial class MainWindow : Window
 
     private void CalibrateButton_Click(object sender, RoutedEventArgs e) => RunCalibration();
 
+    // Ritual region calibration (test branch). Drag a box over the ritual "N/M" tribute counter; the
+    // rect is saved in absolute physical px (like RegionRect) and the always-watching loop reads it live.
+    // internal so the F6 App hook can trigger it too. Instruction text points the user at the counter.
+    internal void RunRitualCalibration()
+    {
+        var rect = CalibrationOverlay.RunOnStaThread(
+            "Drag a box around the ritual counter (e.g. \"4/4\"), then press ENTER to confirm. ESC to cancel.");
+        if (rect is null) return;
+        _config.RitualRegionRect = rect.Value;
+        ConfigStore.Save(_config);
+    }
+
+    // Creates the ritual helper (dedicated capture backend + scanner + chime) and starts the counter
+    // loop. Idempotent and independent of the price repo/icons, so it's created once on load and never
+    // torn down on a league change. The loop reads config live each tick (enabled + region), so toggling
+    // the feature or re-calibrating the region in Settings takes effect without a restart.
+    private void InitRitualHelper()
+    {
+        if (_ritualScanner is not null) return;
+        _ritualCapture = CreateCaptureBackend();
+        _ritualScanner = new RitualScanner(_ritualCapture, new OcrScanner());
+        _ritualChime = new RitualChime(() => _config.RitualChimePath, RitualDiag.Log);
+        _ritualEngine = new RitualScanEngine(
+            _ritualScanner, _ritualChime,
+            () => _config.RitualHelperEnabled,
+            () => _config.IsRitualCalibrated ? _config.RitualRegionRect : (System.Drawing.Rectangle?)null);
+        _ritualEngine.Start();
+    }
+
     // Creates the rumour helper (bundled data + dedicated capture backend + scanner) and starts the
     // WORLD-gated auto-detect loop (#35). Idempotent and independent of the price repo/icons, so it is
     // created once on load and not torn down on a league change.
@@ -574,6 +611,9 @@ public partial class MainWindow : Window
         _rumourEngine?.Dispose();
         RumourOverlayManager.Close();
         _rumourCapture?.Dispose();
+        _ritualEngine?.Dispose();
+        _ritualChime?.Dispose();
+        _ritualCapture?.Dispose();
         _repo?.Dispose();
         _icons?.Dispose();
         _http.Dispose();

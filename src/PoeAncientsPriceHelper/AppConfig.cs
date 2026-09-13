@@ -65,6 +65,23 @@ internal sealed class AppConfig
     public int RumourWorldWidth { get; set; }
     public int RumourWorldHeight { get; set; }
 
+    // Ritual helper (test branch). Watches a small user-calibrated region for the ritual tribute counter
+    // ("N/M") and plays a one-shot chime when it fills (N==M). Enabled by default; when off the loop is
+    // fully idle. Missing in older configs → the initializer keeps these defaults, exactly like the
+    // Rumour keys above (Newtonsoft only overwrites keys present in the file).
+    public bool RitualHelperEnabled { get; set; } = true;
+    // Custom chime file (wav/mp3). Empty → the bundled default (assets\ritual_chime.wav). An invalid or
+    // missing path falls back to the bundled chime at play time.
+    public string RitualChimePath { get; set; } = "";
+    // Calibrate-the-ritual-region hotkey, its own SharpHook binding (default F6). Same storage form as
+    // the other three hotkeys; missing in older configs → F6.
+    public string RitualCalibrateHotkey { get; set; } = "VcF6";
+    // The user-drawn ritual counter region, absolute physical screen px (mirrors RegionRect).
+    public int RitualRegionX { get; set; }
+    public int RitualRegionY { get; set; }
+    public int RitualRegionWidth { get; set; }
+    public int RitualRegionHeight { get; set; }
+
     public Rectangle RegionRect
     {
         get => new(RegionX, RegionY, RegionWidth, RegionHeight);
@@ -72,6 +89,15 @@ internal sealed class AppConfig
     }
 
     public bool IsCalibrated => RegionWidth > 0 && RegionHeight > 0;
+
+    public Rectangle RitualRegionRect
+    {
+        get => new(RitualRegionX, RitualRegionY, RitualRegionWidth, RitualRegionHeight);
+        set { RitualRegionX = value.X; RitualRegionY = value.Y; RitualRegionWidth = value.Width; RitualRegionHeight = value.Height; }
+    }
+
+    [JsonIgnore]
+    public bool IsRitualCalibrated => RitualRegionWidth > 0 && RitualRegionHeight > 0;
 
     public Rectangle RumourWorldRect
     {
