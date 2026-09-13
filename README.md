@@ -196,4 +196,4 @@ If this tool saves you some alt-tabbing, there's a **☕ Buy me a coffee** butto
 Thanks!
 
 ## Disclaimer for those who seem to be troubled by it.. 
-Yes it was greatly helped by AI :D never the less it works and its free!
+Yes it was helped by AI :D never the less it works and its free!
