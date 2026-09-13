@@ -43,19 +43,18 @@ internal static class RitualCounter
 }
 
 // The chime arming state machine (pure, so it's unit-tested). Fires exactly once per ritual on the
-// transition into a confirmed-full counter, then stays disarmed until it re-arms. Re-arms on the
-// guaranteed "0/M" that opens every ritual area, and also — as a belt-and-suspenders — when the region
-// reads nothing for a couple of passes (left the area / OCR missed the 0/M frame). A single misread
-// frame can't fire: the full reading must hold for two consecutive passes. Re-arm paths only ever CLEAR
-// the fired flag, so they can never cause a false chime.
+// transition into a confirmed-full counter, then stays disarmed until it re-arms. Re-arms ONLY on the
+// guaranteed "0/M" that opens every ritual area — never on a blank region. A blank read is transient
+// during a single encounter: selecting the ritual re-lays the UI, so the counter's spot goes blank for
+// a few passes and then the SAME "4/4" returns; re-arming on blank made that return read as a fresh
+// fill and double-chimed. Blank therefore only breaks the consecutive-full streak, it does not re-arm.
+// A single misread frame can't fire either: the full reading must hold for two consecutive passes.
 internal sealed class RitualChimeState
 {
     private const int FullStreakToFire = 2;   // consecutive full reads before chiming (OCR-noise guard)
-    private const int BlankPassesToRearm = 2; // consecutive blank reads that count as "left the area"
 
     private bool _armed = true;
     private int _fullStreak;
-    private int _blankStreak;
 
     public bool Armed => _armed;
 
@@ -64,12 +63,11 @@ internal sealed class RitualChimeState
     {
         if (!reading.HasCounter)
         {
+            // Blank (UI transition, panel open, OCR miss): break the streak but hold the armed state —
+            // only a real "0/M" re-arms. This is what prevents the post-ritual re-fire.
             _fullStreak = 0;
-            if (++_blankStreak >= BlankPassesToRearm) _armed = true;
             return false;
         }
-
-        _blankStreak = 0;
 
         if (reading.N == 0)        // fresh ritual area — re-arm for the next fill
         {
@@ -98,6 +96,5 @@ internal sealed class RitualChimeState
     {
         _armed = true;
         _fullStreak = 0;
-        _blankStreak = 0;
     }
 }

@@ -85,15 +85,18 @@ public class RitualCounterTests
     }
 
     [Fact]
-    public void Chime_ReArmsAfterRegionBlankForTwoPasses()
+    public void Chime_DoesNotReArmOnBlank_AndDoesNotReFireWhenTheSameFullReturns()
     {
+        // The reported bug: fire at 4/4, then selecting the ritual re-lays the UI so the counter's spot
+        // goes blank for a few passes, then the SAME 4/4 returns as the panel closes. Blank must NOT
+        // re-arm, so that returning 4/4 must NOT chime again — only a real 0/M re-arms.
         var s = new RitualChimeState();
         Feed(s, RitualReading.Counter(0, 4), RitualReading.Counter(4, 4), RitualReading.Counter(4, 4)); // fired
         Assert.False(s.Armed);
-        s.Observe(RitualReading.Blank);                          // 1 blank — not yet
+        Feed(s, RitualReading.Blank, RitualReading.Blank, RitualReading.Blank);   // UI transition
         Assert.False(s.Armed);
-        s.Observe(RitualReading.Blank);                          // 2 blanks — re-arm (left the area)
-        Assert.True(s.Armed);
+        Assert.False(s.Observe(RitualReading.Counter(4, 4)));    // same counter returns
+        Assert.False(s.Observe(RitualReading.Counter(4, 4)));    // still no re-fire
     }
 
     [Fact]
