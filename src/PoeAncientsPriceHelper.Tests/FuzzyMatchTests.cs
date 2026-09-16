@@ -54,6 +54,21 @@ public class FuzzyMatchTests
         Assert.Equal(expectedKey, key);
     }
 
+    // The rune-combination panel spells an uncut-skill-gem reward as "Skill Level N: <skill>" (no "gem"
+    // word), so it must pin to the same uncut-skill-gem key as the exchange panel's "uncut skill gem
+    // level N". Every skill at a level is the same uncut gem, so the trailing skill name is ignored.
+    // Strings below are the exact OCR-normalized forms produced from the #59 report screenshots (gkabos).
+    [Theory]
+    [InlineData("skill level 20 skyfall", "uncut skill gem level 20")]
+    [InlineData("skill level 20 triskelion cascade", "uncut skill gem level 20")]
+    [InlineData("skill level 20 animus exchange", "uncut skill gem level 20")]
+    [InlineData("skill level 7 leylines", "uncut skill gem level 7")]
+    public void TryResolveGemKey_RuneCombinationSkillReward_PinsUncutSkillGem(string ocr, string expectedKey)
+    {
+        Assert.True(ScanEngine.TryResolveGemKey(ocr, out var key));
+        Assert.Equal(expectedKey, key);
+    }
+
     // A gem whose level can't be read is still recognised as a gem (so it never falls through to
     // fuzzy), but yields no key → the row shows '?' instead of guessing a neighbouring level.
     [Fact]
@@ -63,10 +78,13 @@ public class FuzzyMatchTests
         Assert.Null(key);
     }
 
-    // Non-gem names are left for the normal exact/prefix/fuzzy path.
+    // Non-gem names are left for the normal exact/prefix/fuzzy path. "support healing runes" is the
+    // rune-combination SUPPORT reward — deliberately not pinned: it carries no level, and poe.ninja
+    // prices support gems only per level, so there's nothing to pin (stays unhandled, not a skill gem).
     [Theory]
     [InlineData("greater vision rune")]
     [InlineData("exalted orb")]
+    [InlineData("support healing runes")]
     public void TryResolveGemKey_NonGem_ReturnsFalse(string ocr)
     {
         Assert.False(ScanEngine.TryResolveGemKey(ocr, out var key));

@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.0] — 2026-09-16
+
+### Added
+
+- **Skill rewards on the rune-combination panel are now priced.** That panel labels an uncut-skill-gem
+  reward as `Skill Level 20: <skill>` (no "gem" word), which the price matcher previously skipped, so
+  those rows showed nothing (#59). They now resolve to the matching uncut skill gem by level — poe.ninja
+  has since added uncut skill gem prices (levels 1–20), which is what makes this possible; earlier it was
+  left unpriced (#48) purely because that data didn't exist. Every skill at a given level is the same
+  uncut gem, so the price is pinned by level. (Support rewards on that panel — `Support: <name>` — stay
+  unpriced: they carry no level, and poe.ninja prices support gems only per level.)
+
 ## [3.10.0] — 2026-09-13
 
 ### Added

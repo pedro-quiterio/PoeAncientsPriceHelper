@@ -646,6 +646,11 @@ internal sealed class ScanEngine : IDisposable
     // Pre-compiled regexes for gem detection (TryResolveGemKey runs on every OCR'd line).
     private static readonly Regex GemTypePattern = new(@"\b(skill|spirit|support)\b", RegexOptions.Compiled);
     private static readonly Regex GemLevelPattern = new(@"\blevel\s+(\d+)\b", RegexOptions.Compiled);
+    // The rune-combination panel names an uncut-skill-gem reward as "Skill Level N: <skill>" (e.g.
+    // "Skill Level 20: Skyfall") — no "gem" word, with a skill name trailing after the level. Its
+    // signature is the type word "skill" IMMEDIATELY followed by "level N"; the exchange panel's
+    // "uncut skill gem level N" always has "gem" between the two, so the two forms never collide.
+    private static readonly Regex RuneSkillPattern = new(@"\bskill\s+level\s+(\d+)\b", RegexOptions.Compiled);
 
     // Minimum character-similarity (1 - editDistance/maxLen) for a fuzzy price match.
     // 0.84 lets ~2 wrong characters through on a 12+ char name, 1 on a ~6 char name —
@@ -683,21 +688,37 @@ internal sealed class ScanEngine : IDisposable
         return best is not null ? (best, bestScore) : null;
     }
 
-    // Detect an uncut gem and pin its identity. Returns true when the name is an uncut gem (a type
-    // word skill/spirit/support together with "gem"); the discriminating type word and "gem" are what
-    // mark it, so a slip in the boilerplate words ("uncot", "levei") doesn't hide a gem. When a level
-    // number is also present, `key` is the canonical price key with the type and level pinned exactly
-    // (no fuzzy) — caller looks it up as-is. When the level can't be read, `key` is null so the caller
-    // shows '?' rather than guessing an adjacent level (which can be several-fold off).
+    // Detect an uncut gem and pin its identity. Returns true when the name is an uncut gem, in either
+    // of the two spellings the game uses:
+    //   • Exchange panel — "Uncut Skill Gem (Level 20)": a type word skill/spirit/support together with
+    //     "gem". The discriminating type word and "gem" are what mark it, so a slip in the boilerplate
+    //     words ("uncot", "levei") doesn't hide a gem. When a level number is also present, `key` is the
+    //     canonical price key with the type and level pinned exactly (no fuzzy). When the level can't be
+    //     read, `key` is null so the caller shows '?' rather than guessing an adjacent level.
+    //   • Rune-combination panel — "Skill Level 20: Skyfall": no "gem" word, a skill name trailing after
+    //     the level. Every skill at a given level is the same uncut skill gem, so the trailing skill name
+    //     is ignored and only the level pins the price. poe.ninja now lists uncut skill gems levels 1–20,
+    //     which is what makes this priceable at all (#59; previously left unpriced under #48). SUPPORT
+    //     rewards on this panel ("Support: Healing Runes") are deliberately NOT handled: they carry no
+    //     level, and poe.ninja only prices support gems per level, so there is nothing to pin.
     internal static bool TryResolveGemKey(string normalizedName, out string? key)
     {
         key = null;
-        if (!normalizedName.Contains("gem")) return false;
-        var type = GemTypePattern.Match(normalizedName);
-        if (!type.Success) return false;
-        var lvl = GemLevelPattern.Match(normalizedName);
-        if (lvl.Success) key = $"uncut {type.Groups[1].Value} gem level {lvl.Groups[1].Value}";
-        return true;
+        if (normalizedName.Contains("gem"))
+        {
+            var type = GemTypePattern.Match(normalizedName);
+            if (!type.Success) return false;
+            var lvl = GemLevelPattern.Match(normalizedName);
+            if (lvl.Success) key = $"uncut {type.Groups[1].Value} gem level {lvl.Groups[1].Value}";
+            return true;
+        }
+        var rune = RuneSkillPattern.Match(normalizedName);
+        if (rune.Success)
+        {
+            key = $"uncut skill gem level {rune.Groups[1].Value}";
+            return true;
+        }
+        return false;
     }
 
     internal static int Levenshtein(string a, string b)
