@@ -30,13 +30,14 @@ public class LocaleFilesTests
         Assert.Equal(expectedKey, Load().Translate(localized));
     }
 
-    // One verified name per shipped language resolves (de/pt/ru/sp all loaded and merged).
+    // One verified name per shipped language resolves (de/fr/pt/ru/sp/zh-TW all loaded and merged).
     [Theory]
     [InlineData("chaossphäre")]        // de
     [InlineData("orbe du chaos")]      // fr
     [InlineData("orbe do caos")]       // pt
     [InlineData("сфера хаоса")]        // ru (Cyrillic)
     [InlineData("orbe de caos")]       // sp
+    [InlineData("混沌石")]              // zh-TW (CJK)
     public void BundledLocales_EachLanguageResolvesChaosOrb(string localizedChaosOrb)
     {
         Assert.Equal("chaos orb", Load().Translate(localizedChaosOrb));
@@ -113,12 +114,13 @@ public class LocaleFilesTests
     }
 
     // Guard the guards: the four data-integrity checks below all pass vacuously if LoadRawLocales
-    // reads nothing (a broken glob/parse), so assert it actually sees the five populated seed files.
+    // reads nothing (a broken glob/parse), so assert it actually sees the six populated seed files
+    // (de/fr/pt/ru/sp, plus the zh-TW seed that made the settings list and the CJK row gates real).
     [Fact]
-    public void LoadRawLocales_SeesAllFiveSeedFilesWithEntries()
+    public void LoadRawLocales_SeesAllSeedFilesWithEntries()
     {
         var locales = LoadRawLocales();
-        Assert.Equal(new[] { "de", "fr", "pt", "ru", "sp" }, locales.Keys.OrderBy(c => c, StringComparer.Ordinal));
+        Assert.Equal(new[] { "de", "fr", "pt", "ru", "sp", "zh-TW" }, locales.Keys.OrderBy(c => c, StringComparer.Ordinal));
         Assert.All(locales.Values, e => Assert.True(e.Count > 100, $"seed file unexpectedly small ({e.Count} entries)"));
     }
 
