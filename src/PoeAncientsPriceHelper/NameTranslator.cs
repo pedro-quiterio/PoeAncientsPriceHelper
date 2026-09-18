@@ -16,14 +16,21 @@ namespace PoeAncientsPriceHelper;
 // Only the ONE language the user selects (Settings → Game language) is loaded; English is the default
 // and loads nothing, so an English client does zero work. Deliberately NO glyph-skeleton step here:
 // folding (o↔c↔e, n↔m↔u …) is aggressive enough to map one item onto another, and the accent-drop case
-// it would catch is already covered by Fold. Glyph-level OCR slips are still absorbed downstream by
-// ScanEngine's fuzzy matcher, which runs on the resolved English key.
+// it would catch is already covered by Fold. For LATIN scripts that discipline is safe because
+// ScanEngine's fuzzy matcher absorbs glyph-level OCR slips on the RESOLVED ENGLISH key. CJK has no
+// such downstream rescue — a Levenshtein distance between a Chinese string and an English key is
+// meaningless — so the translator itself carries the one rescue layer CJK gets: a ≤1-edit match
+// against the locale's CJK keys (see CjkFuzzyKey), with the same ambiguity-drops discipline as
+// BuildCollapsed.
 internal sealed class NameTranslator
 {
     // All keys are NameNormalizer.Normalize()d; values are the English price KEY (also normalized,
     // so they match PriceRepository's dictionary directly).
     private readonly Dictionary<string, string> _exact;      // normalized localized → english key
     private readonly Dictionary<string, string> _folded;     // Fold(localized)      → english key
+    // The subset of exact keys made of CJK ideographs, for the ≤1-edit OCR-misread rescue. Null when
+    // the locale has no CJK entries (every Latin locale) so Translate skips the scan entirely.
+    private readonly List<string>? _cjkKeys;
 
     public int EntryCount => _exact.Count;
     public bool HasEntries => _exact.Count > 0;
@@ -104,6 +111,11 @@ internal sealed class NameTranslator
         // ambiguous — drop it rather than risk a confident wrong match (the exact map still covers
         // the clean read). Same-target collisions are harmless and kept.
         _folded = BuildCollapsed(exact, NameNormalizer.Fold);
+
+        // CJK keys for the ≤1-edit misread rescue. 3+ ideographs required: a 2-char key one edit
+        // away from a random fragment is too loose a race to win safely.
+        var cjk = exact.Keys.Where(k => k.Count(NameNormalizer.IsCjkIdeograph) >= 3).ToList();
+        _cjkKeys = cjk.Count > 0 ? cjk : null;
     }
 
     private static Dictionary<string, string> BuildCollapsed(
@@ -132,7 +144,43 @@ internal sealed class NameTranslator
         if (_exact.Count == 0 || string.IsNullOrEmpty(normalizedName)) return normalizedName;
         if (_exact.TryGetValue(normalizedName, out var en)) return en;
         if (_folded.TryGetValue(NameNormalizer.Fold(normalizedName), out en)) return en;
+        if (_cjkKeys is not null && normalizedName.Any(NameNormalizer.IsCjkIdeograph) &&
+            CjkFuzzyKey(normalizedName) is { } rescued)
+            return _exact[rescued];
         return normalizedName;
+    }
+
+    // Max Levenshtein edits accepted between an OCR'd CJK name and a locale key. 1 — a single
+    // substitution/insertion/deletion, the typical stylised-font misread ("混沌石" read with one
+    // wrong ideograph). Unlike the Latin fuzzy (a similarity ratio), a raw edit budget is the right
+    // measure here: 1 edit on a 3-char CJK name is a similarity of 0.67, far below the Latin
+    // thresholds, yet with only a few hundred CJK keys an unambiguous 1-edit hit is conclusive.
+    private const int CjkFuzzyMaxDistance = 1;
+
+    // Closest CJK locale key to an OCR'd name, or null. A hit must be UNIQUE: if two keys sit at the
+    // same minimal distance (or two different keys are both ≤1 edit away) the read is ambiguous and
+    // nothing is returned — same discipline as BuildCollapsed, a confident wrong match is worse than
+    // a visible miss.
+    private string? CjkFuzzyKey(string normalized)
+    {
+        string? best = null;
+        int bestDist = CjkFuzzyMaxDistance + 1;
+        bool ambiguous = false;
+        foreach (var key in _cjkKeys!)
+        {
+            // Levenshtein ≤1 requires near-equal lengths; skip the scan for the far buckets.
+            if (Math.Abs(key.Length - normalized.Length) > CjkFuzzyMaxDistance) continue;
+            int dist = ScanEngine.Levenshtein(normalized, key);
+            if (dist > CjkFuzzyMaxDistance) continue;
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = key;
+                ambiguous = false;
+            }
+            else ambiguous = true;
+        }
+        return ambiguous ? null : best;
     }
 
     // Build directly from English→localized pairs (used by tests and as the merge primitive).

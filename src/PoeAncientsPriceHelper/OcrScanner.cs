@@ -23,7 +23,10 @@ internal sealed class OcrScanner
     private const int UpscaleFactor = 3;
     private const int MinNameLength = 4;
     // A real row must contain a word at least this long. 4 (not 5) so two-short-word names
-    // like "Void Flux" survive; OCR fragments are still mostly 1–3 char tokens.
+    // like "Void Flux" survive; OCR fragments are still mostly 1–3 char tokens. Both gates run on
+    // CJK-WEIGHTED lengths (see EffectiveLength): one zh-TW ideograph carries about a whole Latin
+    // word of meaning, so 3-char currency names like "混沌石" (Chaos Orb) must pass what a
+    // 3-letter Latin fragment cannot.
     private const int MinWordLength = 4;
 
     // Pre-compiled regexes for StripLeadingNoise / ExtractMultiplier — these run on every OCR'd
@@ -34,11 +37,14 @@ internal sealed class OcrScanner
     // would be an ambiguous "6x5", not a stack marker).
     private static readonly Regex MultiplierPattern = new(@"(?<![a-z0-9])(\d{1,3})\s*x(?![0-9])", RegexOptions.Compiled);
     // Leading noise = short (1–2 char) tokens and digit-bearing junk tokens ("l8", "l38", cost-rune
-    // glyph misreads). The digit alternative is guarded by (?!\S*\p{L}{3}) so it does NOT eat a real
-    // first word whose letters OCR misread as digits ("Olroth's" → "01roth's"): such a token still
-    // holds a 3+ letter run ("roth"), so it is kept and left for the digit-fold resolver (#43). Pure
-    // junk ("l8", "l38") has no letter run and is still stripped.
-    private static readonly Regex LeadingNoise = new(@"^(?:\S{1,2}\s+|(?!\S*\p{L}{3})\S*\d\S*\s+)+", RegexOptions.Compiled);
+    // glyph misreads). The short-token alternative EXCLUDES CJK ideographs — a zh-TW name is never
+    // junk, and (although Normalize folds CJK↔CJK gaps away before this runs) a mixed token like
+    // "石e" or a residual single ideograph must never be eaten. The digit alternative is guarded by
+    // (?!\S*\p{L}{3}) so it does NOT eat a real first word whose letters OCR misread as digits
+    // ("Olroth's" → "01roth's"): such a token still holds a 3+ letter run ("roth"), so it is kept
+    // and left for the digit-fold resolver (#43). Pure junk ("l8", "l38") has no letter run and is
+    // still stripped.
+    private static readonly Regex LeadingNoise = new(@"^(?:[^\s\u4E00-\u9FFF]{1,2}\s+|(?!\S*\p{L}{3})\S*\d\S*\s+)+", RegexOptions.Compiled);
     private static readonly Regex QuantityMarker = new(@"(?<!\w)\d+\s*x\s+", RegexOptions.Compiled);
     // A stack marker at the very start, possibly glued to the name ("6xarcanist s etcher"). Stripped
     // BEFORE LeadingNoise, whose digit-token rule would otherwise swallow "6xarcanist" whole and
@@ -59,9 +65,10 @@ internal sealed class OcrScanner
     // \p{N}). English rows only survive today because the fuzzy matcher happens to absorb the stray
     // token. The count is 1–3 letters/digits in brackets at the very END; a gem's earlier "(Level 19)"
     // group is longer (and holds a space) so it never matches, leaving gem-level detection intact.
-    // Stripped from the raw line before normalization, where the brackets are still present as the
-    // reliable signal. Bracket variants ([ { are allowed since OCR sometimes reads ( as one of them.
-    private static readonly Regex TrailingStackCount = new(@"\s*[(\[{]\s*[\p{L}\p{N}]{1,3}\s*[)\]}]\s*$", RegexOptions.Compiled);
+    // Bracket variants ([ { are allowed since OCR sometimes reads ( as one of them — and the
+    // FULL-WIDTH forms（【〔 are included because a zh-TW client writes "混沌石（3）", which
+    // Normalize would otherwise turn into "混沌石 3" and break the zh-TW.json exact lookup.
+    private static readonly Regex TrailingStackCount = new(@"\s*[(\[{（【〔]\s*[\p{L}\p{N}]{1,3}\s*[)\]}）】〕]\s*$", RegexOptions.Compiled);
     // Some panels (the rune-shape-combination screen, issue #48) show the stack count as a BARE,
     // un-bracketed "xN" after the name — "Saqawal's Rune of Erosion x1" — with no brackets to key on
     // like the exchange panel's "(3)". OCR usually reads the count digit as its look-alike letter
@@ -74,8 +81,9 @@ internal sealed class OcrScanner
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
-    // gameLanguage is the app's Settings → Game language code (en/de/fr/pt/ru/sp); when non-English it
-    // pins the OCR recognizer to that language so a non-English client is read in its own script (#41).
+    // gameLanguage is the app's Settings → Game language code (en/de/fr/pt/ru/sp/zh-TW); when
+    // non-English it pins the OCR recognizer to that language so a non-English client is read in
+    // its own script (#41).
     public OcrScanner(Action<string>? log = null, bool debug = false, string? gameLanguage = null)
     {
         _engine = CreateEngine(gameLanguage, log);
@@ -280,8 +288,7 @@ internal sealed class OcrScanner
                 var normalizedRaw = NameNormalizer.Normalize(StripTrailingStackCount(text));
                 (multiplier, multiplierExplicit) = ExtractMultiplierWithConfidence(normalizedRaw);
                 normalized = StripLeadingNoise(normalizedRaw);
-                if (normalized.Length < MinNameLength) reject = "short";
-                else if (!HasLongWord(normalized, MinWordLength)) reject = "noword";
+                reject = NameGateRejectReason(normalized);
             }
 
             if (reject is null)
@@ -370,12 +377,43 @@ internal sealed class OcrScanner
         return s.Trim();
     }
 
+    // The row-admission length gates, in one place so the reject reason (shown in the OCR diag
+    // line) and the checks can't drift apart. Both gates compare CJK-WEIGHTED lengths: a zh-TW
+    // ideograph encodes roughly a Latin word of meaning, so it counts as 2 (see EffectiveLength) —
+    // without the weighting every 3-char zh-TW currency name ("混沌石", "神聖石", "崇高石"…)
+    // died as REJ:short before the translation lookup ever ran, and any OCR-per-character spacing
+    // turned into REJ:noword on top. Latin/Cyrillic behaviour is byte-identical to the old
+    // raw-Length checks (their chars all weigh 1).
+    internal static string? NameGateRejectReason(string normalized)
+    {
+        if (EffectiveLength(normalized) < MinNameLength) return "short";
+        if (!HasLongWord(normalized, MinWordLength)) return "noword";
+        return null;
+    }
+
+    // Name length with each CJK ideograph weighing 2 Latin characters. A 3-char zh-TW name scores
+    // 6 (passes MinNameLength); a lone ideograph ("石", stray OCR debris) scores 2 and stays out.
+    internal static int EffectiveLength(string normalized)
+    {
+        int len = 0;
+        foreach (char c in normalized)
+            len += NameNormalizer.IsCjkIdeograph(c) ? 2 : 1;
+        return len;
+    }
+
     private static bool HasLongWord(string normalized, int minLen)
     {
         int run = 0;
         foreach (char c in normalized)
         {
-            if (char.IsLetter(c)) { if (++run >= minLen) return true; }
+            if (char.IsLetter(c))
+            {
+                // CJK-weighted run: two adjacent ideographs reach minLen (a 2-char CJK run is a
+                // word), while a single ideograph among Latin junk does not — so "石 e" is still
+                // rejected as fragment noise.
+                run += NameNormalizer.IsCjkIdeograph(c) ? 2 : 1;
+                if (run >= minLen) return true;
+            }
             else run = 0;
         }
         return false;

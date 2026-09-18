@@ -10,14 +10,26 @@ internal static class NameNormalizer
 {
     private static readonly Regex NonWordSpace = new(@"[^\w\s]", RegexOptions.Compiled);
     private static readonly Regex MultiSpace = new(@"\s+", RegexOptions.Compiled);
+    // Whitespace between two CJK ideographs is never meaningful (CJK names carry no spaces), but
+    // Windows OCR's zh-TW recognizer often emits one anyway — "混 沌 石" for 混沌石. Left in, the
+    // gaps break the exact localized→English translation lookup (the zh-TW.json keys are contiguous)
+    // and shred the name for OcrScanner's leading-noise strip. Folded away here so a spaced-out CJK
+    // read lines up with the locale file. Only CJK↔CJK gaps close: "3x 混 沌 石" keeps its "3x ".
+    private static readonly Regex CjkGap = new(@"(?<=[\u4E00-\u9FFF])\s+(?=[\u4E00-\u9FFF])", RegexOptions.Compiled);
 
     public static string Normalize(string text)
     {
         var s = text.ToLowerInvariant();
         s = NonWordSpace.Replace(s, " ");
         s = MultiSpace.Replace(s, " ");
+        s = CjkGap.Replace(s, "");
         return s.Trim();
     }
+
+    // True for a CJK unified ideograph (U+4E00–U+9FFF), the range every zh-TW item name draws from.
+    // Used by the OCR row gates (one ideograph weighs about a Latin word of meaning) and to spot
+    // CJK input that needs the translator's fuzzy rescue.
+    internal static bool IsCjkIdeograph(char c) => c is >= '\u4E00' and <= '\u9FFF';
 
     // Fold Latin diacritics to their ASCII base (ä→a, ß→ss, é→e, ñ→n, ç→c, …) so a localized name
     // still matches when OCR drops or mangles the accent — a very common failure on the stylised

@@ -15,6 +15,17 @@ public class NameTranslatorTests
         ("Orb of Alchemy", "Sphäre der Alchemie"),
     ]);
 
+    // Real zh-TW names from the bundled zh-TW.json seed (poe2db.tw). All 232 entries are pure CJK
+    // and ≥3 ideographs, which is what the CJK weighting and the ≤1-edit rescue are tuned against.
+    private static NameTranslator Chinese() => NameTranslator.FromPairs(
+    [
+        ("Chaos Orb", "混沌石"),
+        ("Divine Orb", "神聖石"),
+        ("Exalted Orb", "崇高石"),
+        ("Ancient Rune of Decay", "遠古腐朽符文"),
+        ("Ancient Rune of Decay II", "遠古腐朽符文二"),   // for the ambiguity test below
+    ]);
+
     [Theory]
     [InlineData("chaossphäre", "chaos orb")]
     [InlineData("göttliche sphäre", "divine orb")]
@@ -85,5 +96,64 @@ public class NameTranslatorTests
         ]);
         Assert.Equal("chaos orb", t.Translate("chaossphäre"));
         Assert.Equal("chaos orb", t.Translate("сфера хаоса"));
+    }
+
+    [Theory]
+    // A clean zh-TW read must hit its zh-TW.json entry exactly and come back as the English key.
+    [InlineData("混沌石", "chaos orb")]
+    [InlineData("神聖石", "divine orb")]
+    [InlineData("遠古腐朽符文", "ancient rune of decay")]
+    public void Translate_ExactTraditionalChinese_ReturnsEnglishKey(string normalizedLocalized, string expectedKey)
+    {
+        Assert.Equal(expectedKey, Chinese().Translate(normalizedLocalized));
+    }
+
+    // Windows OCR's zh-TW recognizer spaces out CJK characters; Normalize folds the gaps, and the
+    // folded string must then hit the locale's contiguous key exactly.
+    [Fact]
+    public void Translate_SpacedCjkRead_AfterNormalize_HitsExactKey()
+    {
+        Assert.Equal("混沌石", NameNormalizer.Normalize("混 沌 石"));
+        Assert.Equal("chaos orb", Chinese().Translate(NameNormalizer.Normalize("混 沌 石")));
+    }
+
+    // CJK has no downstream fuzzy rescue (Levenshtein against English keys is meaningless), so the
+    // translator itself rescues a ONE-ideograph OCR misread: "混沌石" read with 沚→濁 still resolves,
+    // unambiguously (every other key here is ≥2 edits away).
+    [Fact]
+    public void Translate_SingleCharCjkMisread_RescuedByFuzzy()
+    {
+        Assert.Equal("chaos orb", Chinese().Translate("混濁石"));
+        Assert.Equal("ancient rune of decay", Chinese().Translate("遠古腐杇符文"));
+    }
+
+    // Ambiguity discipline: when TWO keys sit 1 edit from the read, there is no confident winner —
+    // the input is returned unchanged (a visible miss beats a confident wrong price).
+    [Fact]
+    public void Translate_AmbiguousCjkMisread_ReturnsInputUnchanged()
+    {
+        // "遠古腐朽符文" and "遠古腐朽符文二" are both 1 edit from the fragment (insert/lose the tail).
+        Assert.Equal("遠古腐朽符文三", Chinese().Translate("遠古腐朽符文三"));
+    }
+
+    // Latin locales have no CJK keys: a CJK read they can't translate passes through untouched
+    // (no rescue layer fires, no exception) so the English matcher can try its chain.
+    [Fact]
+    public void Translate_CjkInput_NoCjkKeys_PassesThrough()
+    {
+        Assert.Equal("混沌石", German().Translate("混沌石"));
+    }
+
+    // The full string pipeline a live zh-TW row goes through — stack-count strip → normalize (which
+    // folds the OCR'd CJK spacing) → leading-noise strip → translate — must land on the English key.
+    // ("3x 混 沌 石（3）" is how the zh-TW exchange panel actually renders "3x Chaos Orb (3)".)
+    [Fact]
+    public void ZhTwRow_FullStringPipeline_ResolvesEnglishKey()
+    {
+        var raw = "3x 混 沌 石（3）";
+        var normalized = OcrScanner.StripLeadingNoise(
+            NameNormalizer.Normalize(OcrScanner.StripTrailingStackCount(raw)));
+        Assert.Equal("混沌石", normalized);
+        Assert.Equal("chaos orb", Chinese().Translate(normalized));
     }
 }

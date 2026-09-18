@@ -28,6 +28,23 @@ public class OcrScannerTests
     }
 
     [Theory]
+    // Windows OCR's zh-TW recognizer emits a space between many CJK characters ("混 沽 石" for
+    // 混沌石). Whitespace between two ideographs is never meaningful, so Normalize folds it away —
+    // that is what lets the spaced-out read match the zh-TW.json key (which is contiguous) exactly.
+    // Only CJK↔CJK gaps close: the "Nx" stack marker keeps its space, Latin text is untouched.
+    [InlineData("混 沌 石", "混沌石")]
+    [InlineData("混  沌  石", "混沌石")]
+    [InlineData("3x 混 沌 石", "3x 混沌石")]
+    [InlineData("未切割的技能寶石 等級 19", "未切割的技能寶石等級 19")]
+    [InlineData("混沌石", "混沌石")]
+    [InlineData("chaos orb", "chaos orb")]
+    [InlineData("a b c", "a b c")]
+    public void NormalizeName_CollapsesWhitespaceBetweenCjkChars(string input, string expected)
+    {
+        Assert.Equal(expected, NameNormalizer.Normalize(input));
+    }
+
+    [Theory]
     [InlineData("14x adaptive alloy", "adaptive alloy")]
     [InlineData("1 mystic alloy", "mystic alloy")]
     [InlineData("3x rune of aldur", "rune of aldur")]
@@ -56,6 +73,13 @@ public class OcrScannerTests
     [InlineData("совершенная сфера усиления 3", "совершенная сфера усиления 3")]
     [InlineData("сфера отмены 2", "сфера отмены 2")]
     [InlineData("чародейский расплав уровень 20 1", "чародейский расплав уровень 20 1")]
+    // CJK names must survive too: the short-token rule excludes ideographs, so neither a stack
+    // marker nor leading junk may eat a zh-TW name (Normalize has already merged any per-character
+    // spacing before this runs).
+    [InlineData("3x 混沌石", "混沌石")]
+    [InlineData("14x崇高石", "崇高石")]
+    [InlineData("e l8 混沌石", "混沌石")]
+    [InlineData("混沌石", "混沌石")]
     public void StripLeadingNoise_RemovesQuantityPrefix(string input, string expected)
     {
         Assert.Equal(expected, OcrScanner.StripLeadingNoise(input));
@@ -81,9 +105,19 @@ public class OcrScannerTests
     [InlineData("Adaptive Alloy x14", "Adaptive Alloy")]
     // The "x" must be spaced off the name — a word ending in x ("...flux") is never a stack marker.
     [InlineData("Verisium Flux", "Verisium Flux")]
+    // A zh-TW client writes the stack count in FULL-WIDTH brackets — "混沌石（3）" — which must
+    // strip like the half-width form or the zh-TW.json exact lookup breaks on a stray " 3".
+    [InlineData("混沌石（3）", "混沌石")]
+    [InlineData("神性石（12）", "神性石")]
+    [InlineData("崇高石 （З）", "崇高石")]   // count digit OCR-misread as a letter, full-width brackets
+    // Full-width gem group is too long (holds a space) to be a stack count — only the LAST short
+    // group goes, exactly like the half-width "(Level 19)" case.
+    [InlineData("未切割的技能寶石（等級 19）", "未切割的技能寶石（等級 19）")]
+    [InlineData("未切割的技能寶石（等級 19）（1）", "未切割的技能寶石（等級 19）")]
     // No trailing marker → unchanged.
     [InlineData("Perfect Chaos Orb", "Perfect Chaos Orb")]
     [InlineData("Chaos Orb", "Chaos Orb")]
+    [InlineData("混沌石", "混沌石")]
     public void StripTrailingStackCount_RemovesBracketedMarker(string input, string expected)
     {
         Assert.Equal(expected, OcrScanner.StripTrailingStackCount(input));
@@ -135,5 +169,40 @@ public class OcrScannerTests
         var (multiplier, explicitHit) = OcrScanner.ExtractMultiplierWithConfidence(input);
         Assert.Equal(expectedMultiplier, multiplier);
         Assert.Equal(expectedExplicit, explicitHit);
+    }
+
+    [Theory]
+    // The row-admission length gates are CJK-weighted: one zh-TW ideograph counts as 2 (it carries
+    // about a Latin word of meaning), so the 3-char currency names of zh-TW.json ("混沌石" = Chaos
+    // Orb) pass what a 3-letter Latin fragment cannot. Before the weighting, every one of those
+    // rows died as REJ:short — OCR caught the Chinese and the gates threw it away before the
+    // translation lookup ever ran. A lone ideograph, or one ideograph amid Latin junk, is still
+    // fragment noise (no ≥4 weighted run) → "noword".
+    [InlineData("混沌石", null)]
+    [InlineData("神性石", null)]
+    [InlineData("遠古腐朽符文", null)]
+    [InlineData("未切割的技能寶石", null)]
+    [InlineData("chaos orb", null)]        // Latin behaviour unchanged
+    [InlineData("void flux", null)]
+    [InlineData("石", "short")]            // a lone ideograph is still OCR debris
+    [InlineData("ab", "short")]
+    [InlineData("e l8", "noword")]
+    [InlineData("石 e", "noword")]         // spaced junk around one ideograph: no long run
+    public void NameGateRejectReason_CjkWeighted(string normalized, string? expected)
+    {
+        Assert.Equal(expected, OcrScanner.NameGateRejectReason(normalized));
+    }
+
+    [Theory]
+    // One CJK ideograph weighs 2 Latin characters in the effective length.
+    [InlineData("", 0)]
+    [InlineData("ab", 2)]
+    [InlineData("chaos orb", 9)]
+    [InlineData("石", 2)]
+    [InlineData("混沌石", 6)]
+    [InlineData("3x混沌石", 8)]           // digits/letters weigh 1, ideographs 2
+    public void EffectiveLength_WeightsCjkChars(string normalized, int expected)
+    {
+        Assert.Equal(expected, OcrScanner.EffectiveLength(normalized));
     }
 }
