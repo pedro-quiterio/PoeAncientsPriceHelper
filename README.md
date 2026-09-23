@@ -178,6 +178,12 @@ crashing.
 - **WPF UI** (lepoco) for the settings window UI
 - **Velopack** for the installer and automatic updates
 
+## Contributors
+
+Thanks to the community members who have contributed to the project:
+
+- **[@JoeHsu092015](https://github.com/JoeHsu092015)** — Traditional Chinese (zh-TW) localization.
+
 ## Acknowledgements
 
 This app builds on these open-source projects:

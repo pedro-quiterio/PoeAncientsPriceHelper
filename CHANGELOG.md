@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.12.0] — 2026-09-24
+
+### Added
+
+- **Traditional Chinese (zh-TW) client support.** A community-contributed locale (thanks to
+  [@JoeHsu092015](https://github.com/JoeHsu092015)) maps Traditional Chinese item names back to their
+  English price keys, so a zh-TW client is now priced like the other localized clients (#60). Select it
+  under **Settings → Game language**. The OCR engine gained CJK-aware handling (folding the spurious
+  spaces the zh-TW recognizer emits inside names, full-width bracket stripping, and a single ≤1-edit
+  rescue for CJK misreads) — all inert for English/Latin clients, which behave exactly as before.
+
+### Fixed
+
+- **The overlay no longer scans while Path of Exile isn't running.** With "Only scan while Path of Exile
+  is the active window" enabled, the overlay could keep scanning and price-checking over other apps
+  (e.g. a browser) when the game was fully closed, because a failed window lookup was treated as "keep
+  scanning". It now pauses when no Path of Exile process is running, while still riding out a transient
+  window-lookup miss during loading (#62).
+
 ## [3.11.0] — 2026-09-16
 
 ### Added

@@ -182,11 +182,18 @@ internal sealed class ScanEngine : IDisposable
             {
                 // Pause while the game isn't the foreground window (alt-tabbed to another app): no
                 // capture, no OCR, overlay hidden. Skipped entirely when the user disables the gate
-                // (config) so pricing runs regardless of what's in front. Fail-open — when the game
-                // window can't be located we scan exactly as before, so a detection miss can never
-                // silently stop pricing. A short grace period (#49) rides out brief focus blips: we only
-                // pause after the game has been continuously not-foreground for ForegroundGraceMs.
-                if (_config.PauseWhenGameNotFocused && GameWindow.TryGet(out var game) && !game.IsForeground)
+                // (config) so pricing runs regardless of what's in front. A short grace period (#49)
+                // rides out brief focus blips: we only pause after the game has been continuously
+                // not-foreground for ForegroundGraceMs.
+                //
+                // TryGet is fail-open — it returns false on ANY window-lookup miss — but "no window"
+                // alone can't tell the game being CLOSED from a transient miss while it runs, which let
+                // the overlay keep scanning over a browser with the game shut (#62). So: when the window
+                // is found, gate on foreground as before; when it isn't, pause only if no PathOfExile
+                // process exists (the game really is closed), and otherwise stay fail-open (a running
+                // game whose window we momentarily can't locate must never silently stop pricing).
+                if (_config.PauseWhenGameNotFocused
+                    && (GameWindow.TryGet(out var game) ? !game.IsForeground : !GameWindow.IsRunning()))
                 {
                     if (notForegroundSinceMs < 0) notForegroundSinceMs = cycleStart;
                     if (cycleStart - notForegroundSinceMs >= ForegroundGraceMs)
@@ -876,6 +883,15 @@ internal sealed class ScanEngine : IDisposable
         }
         return display;
     }
+
+    // The focus-gate decision as a pure truth table, so the #62 fix (pause when the game is CLOSED,
+    // not only when it's unfocused) is regression-tested without needing live windows. The scan loop
+    // mirrors this inline but short-circuited — it only calls TryGet when the gate is enabled, and only
+    // checks IsRunning when no window was found. windowFound=false means TryGet couldn't locate the game
+    // window this cycle; when the game is genuinely closed that means "not running" ⇒ pause, but a
+    // running game whose window is momentarily missing stays fail-open (no pause).
+    internal static bool ShouldPauseForFocus(bool gateEnabled, bool windowFound, bool gameIsForeground, bool gameIsRunning)
+        => gateEnabled && (windowFound ? !gameIsForeground : !gameIsRunning);
 
     // Decide which stack multiplier to display for a row. An explicit "Nx" read this pass always
     // wins. Failing that, a row that already locked onto a stack keeps it; failing that, a stack

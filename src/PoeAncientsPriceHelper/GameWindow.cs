@@ -78,6 +78,29 @@ internal static class GameWindow
         return $"foreground hwnd={fg} pid={pid} proc={proc} title='{GetTitle(fg)}'";
     }
 
+    // True when any PathOfExile* process is running, regardless of whether its window can be located.
+    // Lets the focus gate distinguish "game closed" (pause) from a transient window-lookup miss while
+    // the game runs (stay fail-open) — without it, the gate kept scanning over other apps with the game
+    // shut (#62). FAIL-OPEN on error: if the process list can't be read, assume the game is running so a
+    // running session is never wrongly paused.
+    public static bool IsRunning()
+    {
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.ProcessName.StartsWith(ProcessPrefix, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                catch { /* access denied on a foreign process — skip it */ }
+                finally { p.Dispose(); }
+            }
+        }
+        catch { return true; /* GetProcesses can throw under heavy churn — stay fail-open */ }
+        return false;
+    }
+
     // A visible, non-minimised top-level window belonging to a PathOfExile* process.
     private static (IntPtr Handle, string Source)? FindByProcess()
     {
