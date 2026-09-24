@@ -130,7 +130,7 @@
         <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Vertical" Margin="0,4">
             <ComboBox x:Name="LanguageBox" MinWidth="160" HorizontalAlignment="Left"
                       SelectionChanged="LanguageBox_SelectionChanged"/>
-            <TextBlock Text="Match your PoE 2 client language so item names are priced. (applies on next start)"
+            <TextBlock Text="Match your PoE 2 client language so item names are priced. (applies when Settings closes)"
                        Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
         </StackPanel>
 

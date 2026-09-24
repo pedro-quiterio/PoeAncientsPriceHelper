@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.13.0] — 2026-09-25
+
+### Fixed
+
+- **Russian client OCR matching.** Several Russian name recognition failures are fixed so a Russian
+  client is priced reliably (#66, contributed by [@Zatyp-Tema](https://github.com/Zatyp-Tema)): the
+  Cyrillic `х` and the `×` sign now count as stack markers (including glued and trailing forms), so a
+  quantity like `14х` is read as 14; composed and decomposed `ё` are unified, and common Latin
+  lookalikes in a mixed script read (`Cфера xаоcа`) are folded back to Cyrillic for the dictionary
+  lookup, with ambiguous folds dropped rather than guessed; and a localized uncut gem name followed by
+  its level (`Неогранённый камень духа (Уровень 19)`) resolves to the exact `uncut spirit gem level 19`
+  key, while an unreadable level shows `?` rather than a guessed neighbour. English and other clients
+  are unaffected.
+
+### Changed
+
+- **Game language applies as soon as Settings closes.** Changing the Game language while scanning now
+  restarts the scanner on close, instead of waiting for the next manual start.
+- **Missing Russian OCR component is reported clearly.** If the Russian Windows OCR recognizer is not
+  installed, the app shows how to add it instead of silently misreading every row.
+
 ## [3.12.0] — 2026-09-24
 
 ### Added

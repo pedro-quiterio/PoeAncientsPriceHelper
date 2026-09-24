@@ -34,8 +34,10 @@ internal sealed class OcrScanner
     // saving on the hot path. (NormalizeName's regexes live in NameNormalizer.)
     // The 'x' may be glued straight onto the name when OCR drops the space ("6xArcanist's Etcher"),
     // so the marker is allowed to be followed by a letter — only a trailing DIGIT is rejected (that
-    // would be an ambiguous "6x5", not a stack marker).
-    private static readonly Regex MultiplierPattern = new(@"(?<![a-z0-9])(\d{1,3})\s*x(?![0-9])", RegexOptions.Compiled);
+    // would be an ambiguous "6x5", not a stack marker). The marker class is [xх×]: Latin x, Cyrillic х
+    // (a localized client writes "14х"), and the "×" sign; the lookbehind is \p{L} (any letter, not just
+    // a–z) so a Cyrillic letter before the digit doesn't slip past as a false marker boundary.
+    private static readonly Regex MultiplierPattern = new(@"(?<![\p{L}0-9])(\d{1,3})\s*[xх×](?![0-9])", RegexOptions.Compiled);
     // Leading noise = short (1–2 char) tokens and digit-bearing junk tokens ("l8", "l38", cost-rune
     // glyph misreads). The short-token alternative EXCLUDES CJK ideographs — a zh-TW name is never
     // junk, and (although Normalize folds CJK↔CJK gaps away before this runs) a mixed token like
@@ -45,11 +47,11 @@ internal sealed class OcrScanner
     // and left for the digit-fold resolver (#43). Pure junk ("l8", "l38") has no letter run and is
     // still stripped.
     private static readonly Regex LeadingNoise = new(@"^(?:[^\s\u4E00-\u9FFF]{1,2}\s+|(?!\S*\p{L}{3})\S*\d\S*\s+)+", RegexOptions.Compiled);
-    private static readonly Regex QuantityMarker = new(@"(?<!\w)\d+\s*x\s+", RegexOptions.Compiled);
+    private static readonly Regex QuantityMarker = new(@"(?<!\w)\d+\s*[xх×]\s+", RegexOptions.Compiled);
     // A stack marker at the very start, possibly glued to the name ("6xarcanist s etcher"). Stripped
     // BEFORE LeadingNoise, whose digit-token rule would otherwise swallow "6xarcanist" whole and
     // destroy the item name. Mirrors MultiplierPattern's "letter ok, trailing digit not" boundary.
-    private static readonly Regex LeadingQuantity = new(@"^\s*\d{1,3}\s*x(?![0-9])", RegexOptions.Compiled);
+    private static readonly Regex LeadingQuantity = new(@"^\s*\d{1,3}\s*[xх×](?![0-9])", RegexOptions.Compiled);
     // \p{L} (any-script letter), not [a-z]: an ASCII-only class would treat every Cyrillic/Greek
     // char as "non-alpha" and strip a whole non-Latin name to "" → REJ:short (#39). Leading
     // punctuation is removed; a leading accented Latin letter survives too. Digits are KEPT (\p{N} is
@@ -77,7 +79,7 @@ internal sealed class OcrScanner
     // the "xl" token breaks the exact localized→English translation and the row is a permanent MISS.
     // (Only the "x1" single-stack case appears on that panel; the exchange panel's real multi-stacks use
     // a LEADING "Nx", handled by MultiplierPattern, which this deliberately does not touch.)
-    private static readonly Regex TrailingBareStackCount = new(@"\s+x[\dlioOSB]{1,3}\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TrailingBareStackCount = new(@"\s+[xх×]\s*[\dlioOSBзЗоОвВ]{1,3}\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // debug gates the diagnostic debug_ocr.png dump (see Scan) and CLI OCR-test raw-line logging.
     // App.DebugMode additionally enables raw-line logging for the live overlay when toggled at runtime.
@@ -140,8 +142,9 @@ internal sealed class OcrScanner
         if (string.IsNullOrWhiteSpace(gameLanguage)) return null;
         return gameLanguage.Trim().ToLowerInvariant() switch
         {
-            "en" => null,   // English is the profile default — don't override
-            "sp" => "es",   // the app's Spanish code is "sp"; Windows uses "es"
+            "en" => null,     // English is the profile default — don't override
+            "ru" => "ru-RU",  // pin the regional Russian recognizer (matches MainWindow's OCR-availability check)
+            "sp" => "es",     // the app's Spanish code is "sp"; Windows uses "es"
             var code => code,
         };
     }
@@ -286,7 +289,10 @@ internal sealed class OcrScanner
             {
                 centerY = GetLineCenterY(line, bitmapHeight, scale);
                 var normalizedRaw = NameNormalizer.Normalize(StripTrailingStackCount(text));
-                (multiplier, multiplierExplicit) = ExtractMultiplierWithConfidence(normalizedRaw);
+                // Read the quantity from the FULL normalized text (before the trailing stack marker is
+                // stripped) so an after-the-name "х14" survives for the multiplier parser; the name path
+                // keeps using the stripped form.
+                (multiplier, multiplierExplicit) = ExtractMultiplierWithConfidence(NameNormalizer.Normalize(text));
                 normalized = StripLeadingNoise(normalizedRaw);
                 reject = NameGateRejectReason(normalized);
             }
@@ -342,10 +348,17 @@ internal sealed class OcrScanner
     internal static (int Multiplier, bool Explicit) ExtractMultiplierWithConfidence(string normalized)
     {
         var m = MultiplierPattern.Match(normalized);
+        // Fall back to a TRAILING marker ("Сфера хаоса х14", "… ×14") when there is no leading "Nx".
+        // A localized client can render the stack quantity after the name; the marker is [xх×] here too.
+        if (!m.Success) m = TrailingMultiplier.Match(normalized);
         if (m.Success && int.TryParse(m.Groups[1].Value, out var n) && n >= 1)
             return (Math.Min(n, 999), true);
         return (1, false);
     }
+
+    // Trailing stack marker "<name> x14" / "х14" / "×14" — the after-the-name form some localized panels
+    // use. Only read when no leading "Nx" was found (see ExtractMultiplierWithConfidence).
+    private static readonly Regex TrailingMultiplier = new(@"\s+[xх×]\s*([0-9]{1,3})$", RegexOptions.Compiled);
 
     // Remove a trailing stack-count marker, both the exchange panel's bracketed form ("Perfect Chaos
     // Orb (3)" → "Perfect Chaos Orb") and the rune-panel's bare "xN" form ("Saqawal's Rune x1" →

@@ -258,8 +258,19 @@ public partial class MainWindow : Window
     // Opens the modal Settings window. It edits the same _config instance and persists each change, so
     // nothing needs syncing back here: theme is applied app-wide live, hotkey rebinds re-arm the hook,
     // and capture/auto-start are read straight from _config when next needed.
-    private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var language = _config.GameLanguage;
         new SettingsWindow(_config, RefreshRumourDataAsync) { Owner = this }.ShowDialog();
+        // The OCR recognizer and translator are built once when the scanner starts, so a Game-language
+        // change taken while scanning has no effect until the next start. If it changed and the scanner
+        // is running, bounce it so the new language applies immediately (stop then start).
+        if (language != _config.GameLanguage && _engine is not null)
+        {
+            ToggleStartStop();
+            ToggleStartStop();
+        }
+    }
 
     // Opens the bundled HTML guide (docs\README.html, shipped next to the exe) in the default browser.
     // Falls back to the online README if the local copy is somehow missing.
@@ -331,8 +342,9 @@ public partial class MainWindow : Window
         UpdateStatusLabel();
         StartStopButton.IsEnabled = _config.IsCalibrated;
 
-        // If the scanner was running before the league change, restart it with the new repo/icons.
-        if (_engineWasRunning && _config.IsCalibrated)
+        // If the scanner was running before the league change, restart it with the new repo/icons
+        // (unless the selected language's OCR component is missing, which CheckOcrLanguage reports).
+        if (_engineWasRunning && _config.IsCalibrated && CheckOcrLanguage())
         {
             _engine = new ScanEngine(_config, _repo, _icons, CreateCaptureBackend());
             _engine.Start();
@@ -529,6 +541,27 @@ public partial class MainWindow : Window
             ? new GdiScreenCaptureBackend()
             : new WgcScreenCaptureBackend();
 
+    // For a Russian client, the Russian Windows OCR component must be installed or every row is misread.
+    // Returns true when scanning may proceed; otherwise shows the (Russian) install instructions and
+    // returns false so we don't start a scanner that can't read anything. Other languages always pass.
+    private bool CheckOcrLanguage()
+    {
+        if (_config.GameLanguage is not ("ru" or "ru-RU")) return true;
+        try
+        {
+            if (Windows.Media.Ocr.OcrEngine.IsLanguageSupported(new Windows.Globalization.Language("ru-RU")))
+                return true;
+        }
+        catch { /* WinRT unavailable — fall through to the guidance message */ }
+        System.Windows.MessageBox.Show(
+            "В Windows не установлен русский модуль распознавания текста (OCR).\n\n" +
+            "Откройте PowerShell от имени администратора и выполните:\n" +
+            "Add-WindowsCapability -Online -Name Language.OCR~~~ru-RU~0.0.1.0\n\n" +
+            "После установки перезапустите программу. Язык самой Windows менять не нужно.",
+            "Нужен русский OCR", MessageBoxButton.OK, MessageBoxImage.Information);
+        return false;
+    }
+
     // Shared by the Start/Stop button and the configurable global hotkey (invoked via App, marshalled
     // to the UI thread). internal so the App-level hook can reach it.
     internal void ToggleStartStop()
@@ -537,6 +570,7 @@ public partial class MainWindow : Window
         {
             // The hotkey can fire even when the button is disabled — don't start until we're ready.
             if (!_config.IsCalibrated || _repo is null || _icons is null) return;
+            if (!CheckOcrLanguage()) return;
             _engine = new ScanEngine(_config, _repo, _icons, CreateCaptureBackend());
             _engine.Start();
             StartStopButton.Content = "Stop";

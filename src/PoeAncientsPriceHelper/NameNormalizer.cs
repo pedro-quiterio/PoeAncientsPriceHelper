@@ -10,6 +10,11 @@ internal static class NameNormalizer
 {
     private static readonly Regex NonWordSpace = new(@"[^\w\s]", RegexOptions.Compiled);
     private static readonly Regex MultiSpace = new(@"\s+", RegexOptions.Compiled);
+    // The multiplication sign "×" is a stack marker on a localized client ("14× Сфера хаоса"), but it
+    // is a non-word char, so NonWordSpace below would turn it into a space and lose the quantity before
+    // the multiplier parser ever sees it. When it sits next to a digit, rewrite it to "x" first so the
+    // marker survives. (Cyrillic "х" is a letter and passes through NonWordSpace on its own.)
+    private static readonly Regex MultSign = new(@"(?<=\d)\s*×|×(?=\s*\d)", RegexOptions.Compiled);
     // Whitespace between two CJK ideographs is never meaningful (CJK names carry no spaces), but
     // Windows OCR's zh-TW recognizer often emits one anyway — "混 沌 石" for 混沌石. Left in, the
     // gaps break the exact localized→English translation lookup (the zh-TW.json keys are contiguous)
@@ -19,7 +24,10 @@ internal static class NameNormalizer
 
     public static string Normalize(string text)
     {
-        var s = text.ToLowerInvariant();
+        // Compose to a canonical form first so a combining accent OCR emits separately (e.g. Russian
+        // "ё" as е + U+0308) collapses to the single precomposed character the locale keys use.
+        var s = text.Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        s = MultSign.Replace(s, "x");
         s = NonWordSpace.Replace(s, " ");
         s = MultiSpace.Replace(s, " ");
         s = CjkGap.Replace(s, "");
@@ -33,14 +41,31 @@ internal static class NameNormalizer
 
     // Fold Latin diacritics to their ASCII base (ä→a, ß→ss, é→e, ñ→n, ç→c, …) so a localized name
     // still matches when OCR drops or mangles the accent — a very common failure on the stylised
-    // panel font (e.g. "Chaossphäre" read as "chaossphare", "Große" as "grosse"). Cyrillic/Greek and
-    // other non-Latin scripts pass through untouched (their OCR either reads cleanly or not at all).
-    // Input should already be Normalize()d. Used by NameTranslator's localized→English matching.
+    // panel font (e.g. "Chaossphäre" read as "chaossphare", "Große" as "grosse"). For a Cyrillic name,
+    // instead fold "ё"→"е" and the Latin glyphs OCR substitutes for identical-looking Cyrillic letters
+    // (a→а, c→с, x→х, …), so a mixed-script misread like "Cфера xаоcа" still lines up with its Russian
+    // key. The folded index is collision-checked in NameTranslator (ambiguous folds are dropped), so no
+    // approximate item guessing happens. Input should already be Normalize()d. Used by NameTranslator's
+    // localized→English matching.
     public static string Fold(string normalized)
     {
         var sb = new StringBuilder(normalized.Length);
+        // A single Cyrillic letter marks the whole name as Cyrillic: OCR reads most of it in Cyrillic
+        // and only slips the odd letter to its Latin twin, so fold the Latin twins back to Cyrillic.
+        bool cyrillic = normalized.Any(c => c is >= 'Ѐ' and <= 'ӿ');
         foreach (char c in normalized)
         {
+            if (cyrillic)
+            {
+                sb.Append(c switch
+                {
+                    'ё' => 'е', 'a' => 'а', 'b' => 'в', 'c' => 'с',
+                    'e' => 'е', 'h' => 'н', 'k' => 'к', 'm' => 'м',
+                    'o' => 'о', 'p' => 'р', 't' => 'т', 'x' => 'х', 'y' => 'у',
+                    _ => c,
+                });
+                continue;
+            }
             switch (c)
             {
                 case 'ä': case 'à': case 'á': case 'â': case 'ã': case 'å': sb.Append('a'); break;

@@ -183,6 +183,7 @@ crashing.
 Thanks to the community members who have contributed to the project:
 
 - **[@JoeHsu092015](https://github.com/JoeHsu092015)** — Traditional Chinese (zh-TW) localization.
+- **[@Zatyp-Tema](https://github.com/Zatyp-Tema)** — Russian OCR matching fixes.
 
 ## Acknowledgements
 

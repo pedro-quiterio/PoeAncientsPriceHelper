@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 
 namespace PoeAncientsPriceHelper;
@@ -144,10 +145,39 @@ internal sealed class NameTranslator
         if (_exact.Count == 0 || string.IsNullOrEmpty(normalizedName)) return normalizedName;
         if (_exact.TryGetValue(normalizedName, out var en)) return en;
         if (_folded.TryGetValue(NameNormalizer.Fold(normalizedName), out en)) return en;
+        if (ResolveLocalizedUncutGem(NameNormalizer.Fold(normalizedName)) is { } gemKey) return gemKey;
         if (_cjkKeys is not null && normalizedName.Any(NameNormalizer.IsCjkIdeograph) &&
             CjkFuzzyKey(normalizedName) is { } rescued)
             return _exact[rescued];
         return normalizedName;
+    }
+
+    // Localized uncut-gem level words this recognizes ("(Уровень 19)", "(Ур. 19)", "level 19", with the
+    // Cyrillic-е OCR variant of "level"), plus the reversed Russian form ("19 уровня"). Only 1–2 digit
+    // levels, matched exactly — a gem's level must never be fuzzed onto an adjacent one.
+    private static readonly Regex GemLevelSuffix =
+        new(@"^(?:уровень|уровня|ур|l[еe]v[еe]l|lvl)\s+([0-9]{1,2})$", RegexOptions.Compiled);
+    private static readonly Regex GemLevelSuffixReversed = new(@"^([0-9]{1,2})\s+уровня$", RegexOptions.Compiled);
+
+    // A localized uncut-gem row reads as "<localized base name> <level>", but the locale file maps only
+    // the base name (e.g. RU "неогранённый камень духа" → "uncut spirit gem"); the trailing level belongs
+    // to the row, not the dictionary, so an exact/folded lookup on the whole string misses. Resolve the
+    // base against the folded index, then pin the level EXACTLY onto the English key so the downstream gem
+    // resolver prices it. An unreadable level returns the bare base name (shown as '?', never a guessed
+    // neighbouring level). `folded` is the already-Fold()ed input. Returns null when the row isn't an
+    // uncut gem, leaving the other match paths to run.
+    private string? ResolveLocalizedUncutGem(string folded)
+    {
+        foreach (var (local, english) in _folded)
+        {
+            if (english is not ("uncut skill gem" or "uncut spirit gem" or "uncut support gem")) continue;
+            if (!folded.StartsWith(local + " ", StringComparison.Ordinal)) continue;
+            var suffix = folded[(local.Length + 1)..];
+            var level = GemLevelSuffix.Match(suffix);
+            if (!level.Success) level = GemLevelSuffixReversed.Match(suffix);
+            return level.Success ? english + " level " + level.Groups[1].Value : english;
+        }
+        return null;
     }
 
     // Max Levenshtein edits accepted between an OCR'd CJK name and a locale key. 1 — a single

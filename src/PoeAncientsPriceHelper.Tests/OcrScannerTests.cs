@@ -126,14 +126,14 @@ public class OcrScannerTests
     [Theory]
     // The Game-language code drives which OCR recognizer is selected (#41). English (and empty/unset)
     // returns null → use the Windows profile default; every other language pins its own recognizer.
-    [InlineData("ru", "ru")]
+    [InlineData("ru", "ru-RU")]        // Russian pins the regional recognizer explicitly
     [InlineData("de", "de")]
     [InlineData("fr", "fr")]
     [InlineData("pt", "pt")]
     // The app spells Spanish "sp" but Windows/BCP-47 uses "es".
     [InlineData("sp", "es")]
     [InlineData("SP", "es")]           // case-insensitive
-    [InlineData("  ru  ", "ru")]       // trimmed
+    [InlineData("  ru  ", "ru-RU")]    // trimmed
     [InlineData("en", null)]           // English → profile default, no override
     [InlineData("", null)]
     [InlineData("   ", null)]
