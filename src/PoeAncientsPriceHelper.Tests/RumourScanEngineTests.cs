@@ -12,7 +12,7 @@ public class RumourScanEngineTests
         var gate = RumourScanEngine.WorldGateRegion(screen);
 
         Assert.Equal(2560 / 5, gate.Width);          // a fifth of the width
-        Assert.Equal(1440 / 15, gate.Height);        // a fifteenth of the height
+        Assert.Equal(1440 / 8, gate.Height);         // an eighth of the height
         Assert.Equal(screen.Top, gate.Top);          // pinned to the very top
         // Horizontally centred.
         Assert.Equal(screen.Left + screen.Width / 2, gate.Left + gate.Width / 2);
@@ -70,12 +70,64 @@ public class RumourScanEngineTests
         Assert.True(RumourScanEngine.ContainsWorldToken([Line(misread)]));
     }
 
+    [Fact]
+    public void WorldGateRegion_ReachesTheControllerAtlasTitle()
+    {
+        // Controller UI: the "ATLAS" tab title sits below the character-menu tab bar, its box ending at
+        // ~10.5 % of the viewport height (y ≈ 118 of 1125) — beyond the old 1/15 band.
+        var screen = new Rectangle(0, 0, 2000, 1125);
+        var gate = RumourScanEngine.WorldGateRegion(screen);
+
+        Assert.True(gate.Bottom >= 118);
+        Assert.True(gate.Left <= 970 && gate.Right >= 1030);   // the label's horizontal extent
+    }
+
+    [Fact]
+    public void ContainsWorldToken_TrueWhenControllerAtlasTitlePresent()
+    {
+        Assert.True(RumourScanEngine.ContainsWorldToken([Line("ATLAS")]));
+        Assert.True(RumourScanEngine.ContainsWorldToken([Line("Atlas")]));
+    }
+
+    [Theory]
+    [InlineData("atias")]    // l→i
+    [InlineData("atla5")]    // S→5
+    [InlineData("ATLA")]     // lost trailing glyph
+    public void ContainsWorldToken_TrueForCloseAtlasMisreads(string misread)
+    {
+        Assert.True(RumourScanEngine.ContainsWorldToken([Line(misread)]));
+    }
+
+    [Theory]
+    [InlineData("Inventory")]
+    [InlineData("Quests")]
+    [InlineData("Cosmetics")]
+    [InlineData("Character")]
+    [InlineData("Passives")]
+    [InlineData("Skills")]
+    public void ContainsWorldToken_FalseForOtherCharacterMenuTabs(string title)
+    {
+        // The other tabs show their own title in the same slot; none may open the gate.
+        Assert.False(RumourScanEngine.ContainsWorldToken([Line(title)]));
+    }
+
+    [Fact]
+    public void ContainsWorldToken_FalseForTheMkbActRowWithoutTheBanner()
+    {
+        // The taller band now also covers the act buttons under the M+KB WORLD banner; on their own they
+        // must not count as being on the map.
+        Assert.False(RumourScanEngine.ContainsWorldToken(
+            [Line("Search here"), Line("ACT 1 ACT 2 ACT 3 ACT 4 INTERLUDE ENDGAME")]));
+    }
+
     [Theory]
     [InlineData(34, 4)]      // tester's manual box → 4× (reads "WORLD")
     [InlineData(54, 4)]      // auto band on an 816-tall client → 4× (3× read garbage; the fix)
     [InlineData(72, 4)]      // default-res auto band → still 4×
     [InlineData(150, 4)]
-    [InlineData(200, 1)]     // large band (native 4K) → text already readable, no upscale
+    [InlineData(180, 4)]     // auto band at 1440p (1440 / 8)
+    [InlineData(270, 4)]     // auto band at native 4K (2160 / 8) → keeps the 4× it had at 1/15
+    [InlineData(300, 1)]     // larger (hand-drawn) band → no upscale
     [InlineData(500, 1)]
     [InlineData(0, 1)]       // guard against a zero-height region
     public void GateUpscale_FlatFourForSmallBands(int regionHeight, int expected)
