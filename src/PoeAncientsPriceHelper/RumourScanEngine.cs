@@ -206,14 +206,15 @@ internal sealed class RumourScanEngine : IDisposable
 
     // The small top-centre band where the Atlas shows the "WORLD" label, relative to the passed area —
     // the game's client viewport when it can be located, else the monitor (#45). A fifth of the width
-    // and a fifteenth of the height, centred horizontally at the very top — big enough to catch the
+    // and an eighth of the height, centred horizontally at the very top — big enough to catch the
     // label across resolutions / UI scales, small enough that OCR'ing it ~1 Hz is negligible. Using the
     // viewport (not the monitor) keeps the band over the label when a windowed client sits offset from
-    // the monitor's top-left.
+    // the monitor's top-left. An eighth (not a fifteenth) so it also reaches the controller UI's "ATLAS"
+    // tab title, which sits below the character-menu tab bar at ~9-10 % of the viewport height.
     public static Rectangle WorldGateRegion(Rectangle area)
     {
         int w = Math.Max(1, area.Width / 5);
-        int h = Math.Max(1, area.Height / 15);
+        int h = Math.Max(1, area.Height / 8);
         int x = area.Left + (area.Width - w) / 2;
         return new Rectangle(x, area.Top, w, h);
     }
@@ -223,20 +224,26 @@ internal sealed class RumourScanEngine : IDisposable
     // FLAT factor, not inverse-height: a wider/taller gate band still holds the SAME small text, so it
     // needs the same magnification, not less. (An earlier inverse-height formula gave a 54px band only
     // 3×, which read garbage; 4× reads "WORLD" cleanly — measured on real 34px and 54px captures, where
-    // 6× starts to over-blur.) Native 4K bands are already large enough, so they're left at 1×.
-    internal static int GateUpscale(int regionHeight) => regionHeight is > 0 and < 200 ? 4 : 1;
+    // 6× starts to over-blur.) Only bands taller than the auto band at native 4K (2160 / 8 = 270px, e.g.
+    // a large hand-drawn region) are left at 1× — the auto band keeps the 4× it had at 1/15 height.
+    internal static int GateUpscale(int regionHeight) => regionHeight is > 0 and < 300 ? 4 : 1;
 
     // True if a gate line reads "world". Exact whole-word match first (so "underworld" etc. can't trip
     // it); then a tolerant fallback — the stylised banner can OCR a glyph off even after upscaling
     // ("worid", "vvorld"), so a close ~5-letter token still counts as being on the Atlas map.
+    // "atlas" is the controller-UI anchor: opened via the character menu's Atlas tab, the map shows the
+    // tab title "ATLAS" top-centre instead of the WORLD banner (the map-device route shows no anchor).
+    private static readonly string[] GateAnchors = ["world", "atlas"];
+
     internal static bool ContainsWorldToken(IEnumerable<OcrTextLine> lines)
     {
         foreach (var line in lines)
         foreach (var tok in NameNormalizer.Normalize(line.Text).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var anchor in GateAnchors)
         {
-            if (tok == "world") return true;
+            if (tok == anchor) return true;
             if (tok.Length is >= 4 and <= 7 &&
-                1.0 - (double)ScanEngine.Levenshtein(tok, "world") / 5.0 >= 0.6)   // ≤2 edits from "world"
+                1.0 - (double)ScanEngine.Levenshtein(tok, anchor) / 5.0 >= 0.6)   // ≤2 edits from the anchor
                 return true;
         }
         return false;
