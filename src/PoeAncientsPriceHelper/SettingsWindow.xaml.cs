@@ -64,6 +64,7 @@ public partial class SettingsWindow : Window
 
         AutoStartBox.IsChecked = _config.AutoStart;
         PauseWhenUnfocusedBox.IsChecked = _config.PauseWhenGameNotFocused;
+        ScrollTrackingBox.IsChecked = _config.ScrollTrackingEnabled;
 
         // Rumour helper (#36): on/off + scan rate presets. Tag carries the interval in ms persisted to
         // config.RumourScanIntervalMs. If the saved value isn't a preset, fall back to Normal for display
@@ -157,6 +158,15 @@ public partial class SettingsWindow : Window
     {
         if (_loading) return;
         _config.PauseWhenGameNotFocused = PauseWhenUnfocusedBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
+
+    // The scanner reads ScrollTrackingEnabled once at start (it picks a whole code path), so the change
+    // is persisted here and MainWindow bounces an already-running scanner when Settings closes.
+    private void ScrollTrackingBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _config.ScrollTrackingEnabled = ScrollTrackingBox.IsChecked == true;
         ConfigStore.Save(_config);
     }
 

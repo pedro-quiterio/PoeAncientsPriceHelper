@@ -48,6 +48,13 @@ internal sealed class AppConfig
     // wrongly reads the game as not-foreground). Missing in older configs → the default true, unchanged.
     public bool PauseWhenGameNotFocused { get; set; } = true;
 
+    // Experimental scroll tracking (#68, contributed by @Zatyp-Tema). OFF by default. When on, the price
+    // scan follows the reward panel's vertical scroll between OCR passes so priced rows move with the
+    // list and offscreen rows are remembered without re-OCR, instead of the stable fixed-position slot
+    // locking. It reshapes the core scan loop (30 Hz motion capture + background OCR), so it is opt-in
+    // until proven on a range of hardware. Missing in older configs → the default false (stable path).
+    public bool ScrollTrackingEnabled { get; set; } = false;
+
     // Island Rumour helper (#36). Enabled by default; when off, the WORLD-gated auto-detect loop is
     // fully idle (no gate check, no OCR). Missing in older configs → the initializer keeps these
     // defaults (Newtonsoft only overwrites keys present in the file), exactly like AutoStart above.

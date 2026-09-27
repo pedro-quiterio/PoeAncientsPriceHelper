@@ -261,11 +261,13 @@ public partial class MainWindow : Window
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         var language = _config.GameLanguage;
+        var scrollTracking = _config.ScrollTrackingEnabled;
         new SettingsWindow(_config, RefreshRumourDataAsync) { Owner = this }.ShowDialog();
-        // The OCR recognizer and translator are built once when the scanner starts, so a Game-language
-        // change taken while scanning has no effect until the next start. If it changed and the scanner
-        // is running, bounce it so the new language applies immediately (stop then start).
-        if (language != _config.GameLanguage && _engine is not null)
+        // The OCR recognizer/translator and the scroll-tracking code path are both chosen once when the
+        // scanner starts, so changing the Game language or the scroll-tracking toggle while scanning has
+        // no effect until the next start. If either changed and the scanner is running, bounce it so the
+        // new setting applies immediately (stop then start).
+        if ((language != _config.GameLanguage || scrollTracking != _config.ScrollTrackingEnabled) && _engine is not null)
         {
             ToggleStartStop();
             ToggleStartStop();

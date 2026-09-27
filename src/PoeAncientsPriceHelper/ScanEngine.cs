@@ -101,7 +101,16 @@ internal sealed class ScanEngine : IDisposable
         var scanner = new OcrScanner(Log, App.DebugMode, _config.GameLanguage);
         var detector = new ListDetector();
         var sw = Stopwatch.StartNew();
-        var slots = new List<RowSlot>();             // per-row accumulator: priced rows lock, misses keep retrying
+        var slots = new List<RowSlot>();             // per-row accumulator: priced rows lock, misses keep retrying (stable path)
+        // Experimental scroll tracking (#68), opt-in via config. When on, the open-panel branch below runs
+        // the tracking path (motion capture + background OCR + a scroll-following cache) instead of the
+        // stable fixed-position MergeReads slot locking. Read once so a mid-run config toggle can't split
+        // the loop between the two paths; the user restarts scanning to switch (Settings does this).
+        bool trackScroll = _config.ScrollTrackingEnabled;
+        var tracking = new ScrollTrackingSession();
+        Task<IReadOnlyList<OcrRow>>? pendingOcr = null;   // in-flight background OCR (tracking path only)
+        ScrollFrame? ocrSource = null;
+        int ocrOffset = 0, ocrEpoch = 0;
         IReadOnlyList<PriceRow> lastRows = [];       // what the overlay shows
         // Last state actually pushed to the overlay. The loop ticks ~10×/s but the displayed rows
         // only change when OCR resolves something new, so skipping UpdateState when nothing changed
@@ -112,7 +121,9 @@ internal sealed class ScanEngine : IDisposable
         // Stack memory is now per-row, held on each RowSlot (see MergeReads), so a dropped "Nx" marker
         // on one row can't bleed its multiplier onto another row of the same item.
         int topmostCounter = 0;
-        const int TopmostEveryN = 10;
+        // Tracking runs the loop ~3× faster (30 Hz motion), so re-assert topmost less often per cycle to
+        // keep the wall-clock cadence near 1s in both modes.
+        int topmostEveryN = trackScroll ? 30 : 10;
         bool isOpen = false;          // brightness gate: bright enough to attempt OCR
         bool confirmedOpen = false;   // OCR actually found a list — only then show the overlay
         // After a dismiss (ESC / Ctrl+click) the brightness gate can re-trip on ambient light that
@@ -152,8 +163,11 @@ internal sealed class ScanEngine : IDisposable
         long notForegroundSinceMs = -1;
         const int ForegroundGraceMs = 1000;
         var lastOcrAt = DateTime.MinValue;
-        const int MinOcrIntervalMs = 150;            // OCR floor while panel is open — Windows OCR is fast enough that 6.7/s gives sub-200ms turnaround
-        const int OpenCycleMs = 120;                 // tight loop while scanning
+        // Stable path: OCR runs synchronously on the loop thread, so a 150ms floor gives sub-200ms
+        // turnaround. Tracking path: OCR runs off-thread, so it can cadence slower (350ms) while motion
+        // capture samples the panel up to 30×/s independently.
+        int minOcrIntervalMs = trackScroll ? 350 : 150;
+        int openCycleMs = trackScroll ? 33 : 120;    // tracking: up to 30 motion samples/s; stable: tight loop
         const int ClosedCycleMs = 300;               // polling while watching for the panel — halves idle capture cost
         const int DarkToRelease = 3;                 // dark frames before a dismiss latch releases
         // Two backstops so a dismiss latch can never stick forever, WITHOUT cutting a dismiss short while
@@ -202,7 +216,7 @@ internal sealed class ScanEngine : IDisposable
                         {
                             paused = true;
                             // Reset transient detection state so the panel re-confirms cleanly on return.
-                            slots.Clear(); lastRows = [];
+                            slots.Clear(); tracking.Reset(); lastRows = [];
                             isOpen = false; confirmedOpen = false;
                             brightStreak = 0; darkStreak = 0; staleCount = 0; noPriceStreak = 0;
                             lastPushedRows = []; lastPushedConfirmed = false; lastPushedReading = false;
@@ -263,7 +277,7 @@ internal sealed class ScanEngine : IDisposable
                     }
 
                     isOpen = false; confirmedOpen = false; brightStreak = 0; darkStreak = 0;
-                    slots.Clear(); lastRows = [];
+                    slots.Clear(); tracking.Reset(); lastRows = [];
                     staleCount = 0;
                     noPriceStreak = 0;
                     IsShowing = false;
@@ -286,9 +300,16 @@ internal sealed class ScanEngine : IDisposable
                     else
                     {
                         var now = DateTime.UtcNow;
-                        if ((now - lastOcrAt).TotalMilliseconds >= MinOcrIntervalMs)
+                        if ((now - lastOcrAt).TotalMilliseconds >= minOcrIntervalMs)
                         {
                             lastOcrAt = now;
+                            // The tracking path may have a background OCR in flight from before the
+                            // dismiss; drain it so this synchronous scan never shares the recognizer.
+                            if (pendingOcr is not null)
+                            {
+                                try { await pendingOcr; } catch (Exception ex) { Log($"discarded OCR: {ex.Message}"); }
+                                pendingOcr = null;
+                            }
                             var ocrRows = scanner.Scan(bmp);
                             var pricedNames = ocrRows.Count == 0
                                 ? new List<string>()
@@ -369,10 +390,78 @@ internal sealed class ScanEngine : IDisposable
                         }
                     }
 
-                    if (isOpen)
+                    if (isOpen && trackScroll)
                     {
+                        // === Experimental scroll-tracking path (#68), opt-in ===
+                        // Sample the panel every cycle (up to 30 Hz) and estimate its vertical scroll,
+                        // run OCR off-thread at minOcrIntervalMs, feed results into a scroll-following
+                        // cache, and draw whatever the cache says is currently on screen. Losing pixel
+                        // alignment bumps the session epoch, which drops any in-flight OCR and re-confirms.
+                        var frame = ScrollFrameCapture.Sample(bmp);
+                        int previousOffset = tracking.Offset;
+                        int previousEpoch = tracking.Epoch;
+                        tracking.Observe(frame);
+                        if (tracking.Epoch != previousEpoch)
+                        {
+                            confirmedOpen = false;
+                            Log("scroll alignment lost — new session coordinates");
+                        }
+                        else if (tracking.Offset != previousOffset)
+                            Log($"scroll offset={tracking.Offset} cached={tracking.CachedRows}");
+
                         var now = DateTime.UtcNow;
-                        if ((now - lastOcrAt).TotalMilliseconds >= MinOcrIntervalMs)
+                        if (pendingOcr is { IsCompleted: true })
+                        {
+                            var completed = pendingOcr;
+                            pendingOcr = null;
+                            IReadOnlyList<OcrRow> ocrRows;
+                            try { ocrRows = await completed; }
+                            catch (Exception ex) { Log($"discarded OCR: {ex.Message}"); ocrRows = []; }
+                            // Ignore a result whose source frame belongs to a now-closed session.
+                            if (ocrEpoch == tracking.Epoch && ocrSource is not null)
+                            {
+                                var reads = BuildPriceRows(ocrRows);
+                                Log($"OCR {ocrRows.Count} rows offset={ocrOffset} → " +
+                                    string.Join(" | ", reads.Select(r => $"raw='{r.OcrText.Trim()}' y={r.CenterY} " +
+                                        (r.HasPrice ? $"HIT→'{r.Name}'" : "MISS"))));
+                                tracking.Accept(reads, ocrSource, ocrOffset, ocrEpoch);
+                                bool hasPriced = reads.Any(r => r.HasPrice);
+                                if (hasPriced) { confirmedOpen = true; suppressHintUntilConfirm = false; noPriceStreak = 0; }
+                                else noPriceStreak++;
+                                staleCount = ocrRows.Count == 0 ? staleCount + 1 : 0;
+                                // An unpriced part of this same scrollable list is still the same session:
+                                // pixel alignment keeps its offscreen prices safe in RAM. Only reset once
+                                // OCR has been empty for StaleLimit passes, or the panel yields no price
+                                // AND we can no longer align (it really went away).
+                                if (staleCount >= StaleLimit ||
+                                    (noPriceStreak >= NoPriceCloseLimit && !tracking.Aligned))
+                                {
+                                    Log($"tracking panel lost (stale={staleCount} noPrice={noPriceStreak} aligned={tracking.Aligned}) — resetting");
+                                    tracking.Reset(); confirmedOpen = false;
+                                    suppressHintUntilConfirm = true;
+                                }
+                            }
+                        }
+                        if (pendingOcr is null && tracking.Aligned &&
+                            (now - lastOcrAt).TotalMilliseconds >= minOcrIntervalMs)
+                        {
+                            lastOcrAt = now;
+                            ocrSource = frame;
+                            ocrOffset = tracking.Offset;
+                            ocrEpoch = tracking.Epoch;
+                            var ocrBitmap = (Bitmap)bmp.Clone();
+                            // The recognizer is used by exactly one task at a time (guarded by the
+                            // pendingOcr null check), so OCR latency no longer blocks capture, motion
+                            // estimation, or overlay updates. The clone is disposed inside the task.
+                            pendingOcr = Task.Run(() => { using (ocrBitmap) return scanner.Scan(ocrBitmap); });
+                        }
+                        lastRows = tracking.Visible();
+                    }
+                    else if (isOpen)
+                    {
+                        // === Stable path (default) ===
+                        var now = DateTime.UtcNow;
+                        if ((now - lastOcrAt).TotalMilliseconds >= minOcrIntervalMs)
                         {
                             lastOcrAt = now;
                             var ocrRows = scanner.Scan(bmp);
@@ -449,6 +538,7 @@ internal sealed class ScanEngine : IDisposable
                     else
                     {
                         slots.Clear();
+                        tracking.Reset();
                         lastRows = [];
                         confirmedOpen = false;
                         staleCount = 0;
@@ -466,14 +556,17 @@ internal sealed class ScanEngine : IDisposable
                     // from lastRows, so it can't change without the rows changing — no extra push gate.
                     if (!lastRows.SequenceEqual(lastPushedRows) || confirmedOpen != lastPushedConfirmed || reading != lastPushedReading)
                     {
-                        PriceOverlayManager.UpdateState(lastRows, confirmedOpen, reading, BuildDebugHud(lastRows));
+                        var hud = trackScroll
+                            ? BuildDebugHud(lastRows) + $" cache={tracking.CachedRows} offset={tracking.Offset} track={tracking.Aligned}"
+                            : BuildDebugHud(lastRows);
+                        PriceOverlayManager.UpdateState(lastRows, confirmedOpen, reading, hud);
                         lastPushedRows = lastRows.ToArray();
                         lastPushedConfirmed = confirmedOpen;
                         lastPushedReading = reading;
                     }
 
                     topmostCounter++;
-                    if (topmostCounter >= TopmostEveryN)
+                    if (topmostCounter >= topmostEveryN)
                     {
                         PriceOverlayManager.ForceTopmost();
                         topmostCounter = 0;
@@ -486,7 +579,10 @@ internal sealed class ScanEngine : IDisposable
             }
 
             var cycleMs = sw.ElapsedMilliseconds - cycleStart;
-            var wait = (int)Math.Max(0, (isOpen ? OpenCycleMs : ClosedCycleMs) - cycleMs);
+            // Tracking samples fast (openCycleMs = 33) only once a panel is confirmed; before that it
+            // idles at the stable 120ms so an unconfirmed bright frame doesn't burn 30 captures/s.
+            int openWait = trackScroll ? (confirmedOpen ? openCycleMs : 120) : openCycleMs;
+            var wait = (int)Math.Max(0, (isOpen ? openWait : ClosedCycleMs) - cycleMs);
             if (wait > 0)
             {
                 try { await Task.Delay(wait, ct); }
@@ -494,6 +590,12 @@ internal sealed class ScanEngine : IDisposable
             }
         }
 
+        // Drain any in-flight background OCR so its cloned bitmap is disposed before we exit.
+        if (pendingOcr is not null)
+        {
+            try { await pendingOcr; } catch (Exception ex) { Log($"final OCR: {ex.Message}"); }
+        }
+        tracking.Reset();
         IsShowing = false;
         PriceOverlayManager.Hide();
         Log("loop exited");

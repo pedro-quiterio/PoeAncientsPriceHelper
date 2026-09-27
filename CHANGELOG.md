@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental "follow the panel while scrolling" mode** (off by default, under Settings). When on, the
+  price scan tracks the reward panel's vertical scroll between OCR passes, so prices stay attached to
+  their rows as the list scrolls and off-screen rows are remembered without re-reading them. This targets
+  the scrolling/sticking reports (#55, #59, #67). It reshapes the scanner (higher capture rate plus
+  background OCR), so it stays opt-in while it is validated across hardware. Contributed by
+  [@Zatyp-Tema](https://github.com/Zatyp-Tema) (#68); the stable fixed-position scanner remains the default.
+
 ## [3.14.0] — 2026-09-27
 
 ### Added
