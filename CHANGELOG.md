@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.14.0] — 2026-09-27
+
+### Added
+
+- **Island Rumour helper now works with a controller.** On a controller the Atlas is opened through the
+  character menu, which shows an "ATLAS" tab title top-centre instead of the mouse-and-keyboard "WORLD"
+  banner. The auto-detect gate now accepts "ATLAS" as a second anchor (same fuzzy tolerance as "WORLD"),
+  so the overlay triggers for controller players too, with no change for mouse-and-keyboard users (#69).
+  Thanks to [@saxe78](https://github.com/saxe78) for the contribution.
+
 ## [3.13.0] — 2026-09-25
 
 ### Fixed
