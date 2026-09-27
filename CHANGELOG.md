@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.15.0] — 2026-09-28
+
 ### Added
 
 - **Experimental "follow the panel while scrolling" mode** (off by default, under Settings). When on, the
